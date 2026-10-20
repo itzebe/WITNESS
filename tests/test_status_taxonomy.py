@@ -174,3 +174,27 @@ def test_readme_states_the_same_status_count_as_the_code():
         f"README must state '{expected} statuses' to match the {len(Status)}-status enum"
     )
 
+
+def test_encryption_status_does_not_claim_a_mode_it_cannot_see():
+    """``e2e_encryption.enabled`` is one boolean covering two modes.
+
+    Ring's FAQ distinguishes TAKE ("A TAKE device is visible and callable via
+    the Ring Partner API, but video requests return encrypted content") from
+    E2EE ("E2EE devices are not returned by any Ring Partner API"). The
+    configurations payload exposes a single boolean, so WITNESS cannot tell
+    which mode is in force and must not say "end-to-end encrypted".
+    """
+    from conftest import T0, device, make_observation
+    from witness.engine.reconcile import reconcile
+
+    obs = make_observation("o1", devices=[device("d1", "Driveway", encrypted=True)])
+    view = reconcile("ring", [obs], now=T0).devices[0]
+    text = view.content.explanation.lower()
+
+    assert view.content.status is Status.SOURCE_ENCRYPTED
+    assert "end-to-end encrypted" not in text, (
+        "the boolean does not distinguish E2EE from TAKE; the explanation must "
+        "not name a mode"
+    )
+    assert "does not say which encryption mode" in text
+

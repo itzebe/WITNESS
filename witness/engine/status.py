@@ -197,8 +197,9 @@ STATUS_SPEC: dict[Status, StatusSpec] = {
             "WITNESS concludes the source has stopped exposing this device. "
             "WITNESS cannot determine why: the documented causes include the "
             "owner unlinking the integration, the owner enabling end-to-end "
-            "encryption on the device, or the device leaving the account. "
-            "These are not distinguishable from the available data."
+            "encryption (which removes the device from the API entirely), or "
+            "the device leaving the account. These are not distinguishable "
+            "from the available data."
         ),
         tone="warn",
     ),
@@ -257,8 +258,10 @@ STATUS_SPEC: dict[Status, StatusSpec] = {
         status=Status.SOURCE_ENCRYPTED,
         label="Content encrypted",
         definition=(
-            "The source explicitly reports that this device is end-to-end "
-            "encrypted, so its content cannot be read by this integration."
+            "The source reports video encryption enabled for this device "
+            "(`e2e_encryption.enabled = true`). The device is still exposed by "
+            "the API, but video requests return encrypted content this "
+            "integration cannot read."
         ),
         trigger=(
             "rule:content_encrypted -- the configurations request succeeded and "
@@ -268,13 +271,17 @@ STATUS_SPEC: dict[Status, StatusSpec] = {
         forbidden_conclusions=(
             "That anything happened or did not happen at the device.",
             "That the device is offline.",
+            "That the device was removed.",
+            "That the encryption mode is E2EE rather than TAKE (the field does "
+            "not distinguish them).",
         ),
         explanation_template=(
             "{device_label} reported e2e_encryption.enabled = true at "
             "{observed_at}. The source has told us that content from this device "
             "is not readable by this integration. This is a confirmed "
             "limitation, not a fault: WITNESS can report the device's presence "
-            "but can never report its content."
+            "but not its content. The field does not say which encryption mode "
+            "is in use, so WITNESS does not claim one."
         ),
         tone="warn",
     ),

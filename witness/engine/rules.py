@@ -218,8 +218,9 @@ def rule_inventory_absent(
                 f"inventory responses, most recently at {iso(obs.observed_at)}. WITNESS "
                 "concludes the source has stopped exposing this device. WITNESS cannot "
                 "determine why: the documented causes include the owner unlinking the "
-                "integration, the owner enabling end-to-end encryption on the device, "
-                "or the device leaving the account. These are not distinguishable from "
+                "integration, the owner enabling end-to-end encryption (which removes "
+                "the device from the API entirely), or the device leaving the account. "
+                "These are not distinguishable from "
                 "the available data."
             ),
             observed_at=obs.observed_at,
@@ -362,7 +363,8 @@ def rule_content_state(
                 f"{iso(reported_at)}. The source has told us that content from this "
                 "device is not readable by this integration. This is a confirmed "
                 "limitation, not a fault: WITNESS can report the device's presence but "
-                "can never report its content."
+                "not its content. The field does not say which encryption mode is in "
+                "use, so WITNESS does not claim one."
             ),
             detail={"e2e_encrypted": True},
             **base,

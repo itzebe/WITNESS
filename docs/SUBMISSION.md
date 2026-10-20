@@ -6,7 +6,7 @@ Everything a reviewer needs to verify this submission, in one place.
 
 ```bash
 pip install -r requirements.txt
-python -m pytest tests/ -q          # expect 304 passed
+python -m pytest tests/ -q          # expect 305 passed
 python -m uvicorn witness.api:app --port 8000
 ```
 
@@ -62,7 +62,7 @@ We are stating this plainly because the difference matters.
 - Credential redaction: no token appears in any error message or API response.
 - The front end renders every view against real payloads (headless harness,
   `scripts/render_check.js`).
-- 304 automated tests pass.
+- 305 automated tests pass.
 
 ### DOCUMENTED — in the published interface, not exercised by us
 
@@ -196,7 +196,7 @@ witness/engine/      Deterministic core: statuses, rules, reconciliation, ledger
 witness/adapters/    Ring (live, read-only) and simulated sources
 witness/api.py       HTTP read model
 web/                 Front end, no build step
-tests/               304 tests
+tests/               305 tests
 scripts/             render_check.js, demo_tamper.py
 docs/                FRICTION_LOG.md, DEMO_SCRIPT.md, SUBMISSION.md
 ```
