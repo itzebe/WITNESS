@@ -305,7 +305,31 @@ class RingAdapter(SourceAdapter):
                     observed_at=result.observed_at,
                 )
             raw_attributes = resource.get("attributes")
-            attributes = raw_attributes if isinstance(raw_attributes, dict) else {}
+            if raw_attributes is None:
+                # The resource carries no attributes member: it exposes no
+                # configuration fields at all, so there is genuinely nothing to
+                # read. That is an empty result, not an unreadable one.
+                attributes: dict[str, Any] = {}
+            elif not isinstance(raw_attributes, dict):
+                # A present-but-unreadable attributes block is not an empty
+                # one. Coercing it to {} would make the content rule report
+                # that the response "did not include an encryption field" about
+                # a payload WITNESS could not read at all.
+                return FetchResult.failed(
+                    result.endpoint,
+                    Failure(
+                        kind=FailureKind.MALFORMED_RESPONSE,
+                        message=(
+                            "configurations resource carried an attributes member "
+                            f"that was {type(raw_attributes).__name__}, expected an object"
+                        ),
+                        http_status=result.http_status,
+                        endpoint=result.endpoint,
+                    ),
+                    observed_at=result.observed_at,
+                )
+            else:
+                attributes = raw_attributes
         return FetchResult.success(
             result.endpoint,
             attributes,

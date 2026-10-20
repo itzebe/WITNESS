@@ -484,6 +484,56 @@ async def test_live_configurations_plain_response_states_not_encrypted():
     assert view.content.status is Status.CONTENT_VISIBLE
 
 
+async def test_malformed_configurations_attributes_is_not_read_as_empty():
+    """A present-but-unreadable attributes block must not become "no field".
+
+    The envelope reader refuses a malformed payload rather than reporting an
+    empty result. A malformed *attributes* member must be treated the same way:
+    coercing it to ``{}`` makes the content rule state that the response "did
+    not include an encryption field" about a payload WITNESS could not read.
+    """
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path == "/v1/devices":
+            return httpx.Response(200, json=DEVICES_BODY)
+        if request.url.path.startswith("/v1/history/devices/"):
+            return httpx.Response(200, json=HISTORY_BODY)
+        if request.url.path.endswith("/configurations"):
+            return httpx.Response(200, json={"data": {"id": "dev-1", "attributes": "not-an-object"}})
+        return httpx.Response(404)
+
+    obs = await collect_observation(_mock(handler=handler))
+    configurations = obs.configurations
+    assert configurations is not None
+    assert configurations.ok is False
+    assert configurations.failure.kind is FailureKind.MALFORMED_RESPONSE
+
+    recon = reconcile("ring", [obs])
+    view = next(v for v in recon.devices if v.device_id == "dev-1")
+    assert view.content.status is Status.CONTENT_UNAVAILABLE
+    assert "did not include an encryption field" not in view.content.explanation
+
+
+async def test_configurations_resource_without_attributes_is_an_empty_result():
+    """An absent attributes member is genuinely empty, not unreadable.
+
+    A resource that exposes no attributes object states nothing about
+    configuration, which is different from a member WITNESS could not read.
+    """
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path == "/v1/devices":
+            return httpx.Response(200, json=DEVICES_BODY)
+        if request.url.path.startswith("/v1/history/devices/"):
+            return httpx.Response(200, json=HISTORY_BODY)
+        if request.url.path.endswith("/configurations"):
+            return httpx.Response(200, json={"data": {"id": "dev-1", "type": "configurations"}})
+        return httpx.Response(404)
+
+    obs = await collect_observation(_mock(handler=handler))
+    assert obs.configurations is not None
+    assert obs.configurations.ok is True
+    assert obs.configurations.data == {}
+
+
 async def test_collect_observation_contains_adapter_exceptions():
     class Exploding(RingAdapter):
         async def fetch_inventory(self):
