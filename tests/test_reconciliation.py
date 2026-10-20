@@ -288,6 +288,32 @@ def test_classification_limitation_names_the_available_fields():
     assert "will not infer a classification" in lim.explanation
 
 
+def test_classification_explanation_does_not_deny_a_field_it_lists():
+    """The explanation must not contradict the field list it prints.
+
+    A source may return an explicit ``classification`` key holding null. The
+    field is then genuinely present in ``raw_field_names`` and the explanation
+    lists it -- so a sentence reading "they do not carry a classification field"
+    would deny, one clause later, the very field it just named. The claim that
+    is true in both the absent-key and present-but-null cases is that no
+    *populated* classification value was returned. Pin that wording.
+    """
+    ev = event(
+        "e1",
+        classification=None,
+        raw_field_names=("classification", "event_id", "event_type", "reported_at"),
+    )
+    obs = make_observation("o1", devices=[device("d1", "A")], events=[ev])
+    recon = reconcile("ring", [obs], now=T0)
+    lim = next(l for l in recon.limitations if l.status is Status.CLASSIFICATION_UNAVAILABLE)
+
+    assert "classification" in lim.detail["present_fields"]
+    lowered = lim.explanation.lower()
+    assert "do not carry a classification field" not in lowered
+    assert "carry only these fields" not in lowered
+    assert "populated classification value" in lowered
+
+
 def test_present_classification_suppresses_the_limitation():
     ev = event("e1", classification="human")
     obs = make_observation("o1", devices=[device("d1", "A")], events=[ev])

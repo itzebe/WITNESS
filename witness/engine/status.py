@@ -392,10 +392,11 @@ STATUS_SPEC: dict[Status, StatusSpec] = {
         ),
         explanation_template=(
             "WITNESS retrieved {event_count} event record(s) at {observed_at}. "
-            "The records carry only these fields: {present_fields}. They do not "
-            "carry a classification field, so WITNESS cannot say what the event "
-            "was. {classification_note} WITNESS will not infer a classification "
-            "from anything other than a field the source actually returned."
+            "The records expose these fields: {present_fields}. None of them "
+            "carries a populated classification value, so WITNESS cannot say what "
+            "the event was. {classification_note} WITNESS will not infer a "
+            "classification from anything other than a field the source actually "
+            "returned with a value."
         ),
         tone="unknown",
     ),

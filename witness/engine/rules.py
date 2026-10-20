@@ -476,10 +476,10 @@ def rule_classification_availability(
         rule_id="rule:classification_not_exposed",
         explanation=(
             f"WITNESS retrieved {len(obs.events)} event record(s) at {iso(obs.observed_at)}. "
-            f"The records carry only these fields: {', '.join(present) or 'none'}. They do "
-            f"not carry a classification field, so WITNESS cannot say what the event was. "
-            f"{note} WITNESS will not infer a classification from anything other than a "
-            "field the source actually returned."
+            f"The records expose these fields: {', '.join(present) or 'none'}. None of them "
+            f"carries a populated classification value, so WITNESS cannot say what the event "
+            f"was. {note} WITNESS will not infer a classification from anything other than a "
+            "field the source actually returned with a value."
         ),
         observed_at=obs.observed_at,
         scope=f"question:{question}",

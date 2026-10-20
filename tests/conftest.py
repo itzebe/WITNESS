@@ -120,6 +120,7 @@ def event(
     reported_at: datetime | None = None,
     retrieved_at: datetime | None = None,
     classification: str | None = None,
+    raw_field_names: tuple[str, ...] = ("event_type", "start", "end", "is_third_party_reviewed"),
 ) -> EventRecord:
     return EventRecord(
         event_id=event_id,
@@ -127,7 +128,7 @@ def event(
         reported_at=reported_at or T0,
         retrieved_at=retrieved_at or T0,
         classification=classification,
-        raw_field_names=("event_type", "start", "end", "is_third_party_reviewed"),
+        raw_field_names=raw_field_names,
     )
 
 
