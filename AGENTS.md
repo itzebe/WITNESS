@@ -136,6 +136,25 @@ Do not reorder this.
 - `api.amazonvision.com` returns 401 for real routes and 404 for fake ones —
   use this to confirm routing without credentials.
 
+## The defect class to hunt for
+
+WITNESS's failure mode is not crashing, it is *fabricating*: turning something
+it could not read into a confident finding. Every defect found in the Phase 1
+audit was of this class, and each was reachable from a plain HTTP 200:
+
+| Shape | Was read as | Now |
+|---|---|---|
+| `{"error": "..."}` with HTTP 200 | empty inventory -> withdrawal | MALFORMED_RESPONSE |
+| `{"data": "oops"}` | empty inventory -> withdrawal | MALFORMED_RESPONSE |
+| history entry `42` | phantom event -> EVENT_DUPLICATE | MALFORMED_RESPONSE |
+
+When adding a parse path, ask: *if this input is garbage, does anything
+downstream assert a conclusion from it?* The guard belongs at the boundary,
+where the payload shape is still visible. `_extract_data_list`,
+`normalise_device_list` and `normalise_event_list` are the three boundary
+functions; all three return `(parsed, problem)` and all three refuse rather
+than guess. Do not add a fourth that returns a bare list.
+
 ## Submission artifacts
 
 - `docs/FRICTION_LOG.md` — scored deliverable. Honest, specific, includes dead
