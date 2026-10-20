@@ -176,6 +176,32 @@ def test_ui_never_hardcodes_a_status_string_as_a_conclusion():
     assert "/api/status-spec" in js
 
 
+def test_ui_method_tab_lists_every_status_in_the_registry():
+    """Every status the engine can assign must appear on the Method tab.
+
+    The tab reads each status's text from the API, but the list of keys it
+    iterates is written by hand in ``renderMethod``. A status added to the enum
+    without being added to that list would exist in the API and never be shown,
+    so the "this page is generated from the engine's own registry" claim on the
+    page would be false. Parse the keys out of the source and compare.
+    """
+    import re
+
+    from witness.engine.status import Status
+
+    js = APP_JS.read_text()
+    method = js.split("async function renderMethod()", 1)[1]
+    groups_block = method.split("const groups = [", 1)[1].split("];", 1)[0]
+
+    listed = set(re.findall(r"'([A-Z_]+)'", groups_block))
+    declared = {s.name for s in Status}
+    assert listed == declared, (
+        "the Method tab's status groups do not match the engine registry; "
+        f"missing from the UI: {sorted(declared - listed)}; "
+        f"listed but not in the registry: {sorted(listed - declared)}"
+    )
+
+
 def test_ui_labels_the_simulated_source():
     js = APP_JS.read_text()
     assert "simulated" in js.lower()

@@ -6,7 +6,7 @@ Everything a reviewer needs to verify this submission, in one place.
 
 ```bash
 pip install -r requirements.txt
-python -m pytest tests/ -q          # expect 185 passed
+python -m pytest tests/ -q          # expect 280 passed
 python -m uvicorn witness.api:app --port 8000
 ```
 
@@ -62,7 +62,7 @@ We are stating this plainly because the difference matters.
 - Credential redaction: no token appears in any error message or API response.
 - The front end renders every view against real payloads (headless harness,
   `scripts/render_check.js`).
-- 185 automated tests pass.
+- 280 automated tests pass.
 
 ### DOCUMENTED — in the published interface, not exercised by us
 
@@ -117,6 +117,7 @@ These are not aspirations; they are asserted in the suite.
 | Simulated data is always labelled simulated | `test_simulated_source_is_labelled_simulated`, `test_simulated_capabilities_are_all_labelled_simulated` |
 | A failed request is never read as a withdrawal | `test_source_failure_frame_does_not_become_a_withdrawal` |
 | An empty success is not a failure | `test_successful_empty_response_is_a_success_not_a_failure` |
+| An unreadable payload is not an empty one | `test_error_envelope_does_not_become_an_asserted_withdrawal`, `test_unreadable_history_does_not_fabricate_a_duplicate_finding` |
 | The ledger's limitation is asserted, not hidden | `test_full_rewrite_is_not_detectable_by_a_local_verifier` |
 | No token leaks through the API | `test_ring_connection_never_leaks_a_token` |
 | The UI states the ledger limitation | `test_ui_states_the_ledger_limitation` |
@@ -139,7 +140,7 @@ witness/engine/      Deterministic core: statuses, rules, reconciliation, ledger
 witness/adapters/    Ring (live, read-only) and simulated sources
 witness/api.py       HTTP read model
 web/                 Front end, no build step
-tests/               185 tests
+tests/               280 tests
 scripts/             render_check.js, demo_tamper.py
 docs/                FRICTION_LOG.md, DEMO_SCRIPT.md, SUBMISSION.md
 ```
