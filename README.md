@@ -95,7 +95,7 @@ RING_ACCESS_TOKEN="<token>" python scripts/live_smoke.py
 python -m pytest tests/ -q
 ```
 
-310 tests. The suite covers the status taxonomy, the reconciliation rules, the
+313 tests. The suite covers the status taxonomy, the reconciliation rules, the
 ledger's tamper detection *and its documented limits*, the Ring adapter's full
 HTTP surface against a mock transport, the service pipeline, the HTTP API, and
 the front end (including a headless harness that runs every render function
@@ -130,7 +130,7 @@ witness/
   service.py        Application service; wires observations to the ledger
   api.py            FastAPI read model
 web/                Front end (no build step)
-tests/              310 tests
+tests/              313 tests
 docs/               Friction log, demo script, submission notes
 ```
 

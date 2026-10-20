@@ -3,26 +3,49 @@
 Target length: **2 minutes 45 seconds**, leaving margin. Every claim in this
 script is something the product actually does and can be re-run live.
 
-> **Compliance gate — read before recording.** The Ring track rules say: *"The
-> demo video must show the project working through a simulator or an actual Ring
-> device you have for testing."* Ring's official simulator **is** the Ring
-> Developer Playground (`developer.amazon.com/ring/console/playground`) — the
-> hackathon's own organizers confirmed on the Devpost forum that "the simulator
-> is the Ring Developer Playground."
+> **Compliance gate — read before recording.** The Ring track rules say: *"Any
+> Ring API, SDK, simulator, or device listed in Ring's developer documentation is
+> acceptable. The demo video must show the project working through a simulator or
+> an actual Ring device you have for testing."* Ring's official simulator **is**
+> the Ring Developer Playground (`developer.amazon.com/ring/console/playground`).
 >
-> The scenario below runs on WITNESS's **own** simulated source
+> The hackathon organizer's own answer on the Devpost forum (Emerson Sklar,
+> Amazon Ring developer advocate) settles how to combine sources, and it is worth
+> quoting in full:
+>
+> > "1) Yes. The simulator is the Ring Developer Playground. Its Package, Vehicle
+> > and Motion streams are simulated live-view sessions you consume through the
+> > API. … So you won't be penalized for building only on the Playground.
+> > 2) Not through the Playground itself. Those three streams are the only
+> > simulated sources. What you can do is run your own footage through your app's
+> > own processing to show that part of the experience. 3) Yes, combining them is
+> > fine. Use the Playground streams to show the integration working end to end,
+> > and your own videos to show scenarios the samples don't cover. Just make it
+> > clear in your video and README which footage comes from Ring and which is
+> > yours, so judges can see the Ring API is actually being used."
+>
+> **This is the shape this demo must take.** The Playground's three sample
+> streams cannot produce a withdrawal, an encryption transition, a duplicate
+> delivery or a late arrival — those are the conditions worth demonstrating, and
+> the organizer explicitly permits showing them from our own source *provided we
+> label which is which*.
+>
+> So: **Segment A (live)** shows the `ring` source making real, authenticated,
+> read-only calls to the Playground — the integration working end to end.
+> **Segment B (local)** shows `ring-simulated`, labelled on screen as WITNESS's
+> own scenario, for the conditions the Playground cannot produce.
+>
+> The scenario below is **Segment B**. It runs on WITNESS's own simulated source
 > (`ring-simulated`), which is generated from a scenario table and does **not**
-> contact Ring. That is not the Ring simulator, and it must not be presented as
-> one.
+> contact Ring. It must never be presented as the Ring simulator.
 >
-> To satisfy the rule, record the demo with the **live `ring` source pointed at
-> the Ring Developer Playground**. The Playground is behind an Amazon Developer
-> sign-in; obtain a free account, generate a one-click token, and run with
+> To record **Segment A**, the Playground is behind an Amazon Developer sign-in;
+> obtain a free account, generate a one-click token, and run with
 > `RING_ACCESS_TOKEN` set (see README, and `scripts/live_smoke.py` to confirm the
-> token works before recording). If the Playground does not expose a condition
-> you want to show (for example the encryption transition), show the live source
-> for what it does establish, and state plainly which frames come from WITNESS's
-> own scenario. Do not present the simulated source as the Ring simulator. See
+> token works before recording). **Playground tokens are valid for 30 minutes**,
+> so record Segment A in one sitting or regenerate the token. If no Playground
+> access can be obtained, record Segment B only and state in the video and the
+> submission text that the Ring simulator path was not exercised. See
 > `docs/SUBMISSION.md`.
 
 Setup before recording:
@@ -37,6 +60,46 @@ Open `http://127.0.0.1:8000`. Confirm the source selector reads
 banner is visible.
 
 ---
+
+## Segment A (live, ~25s) — record this first, with a Playground token
+
+This is the segment the rules require: the integration working end to end against
+Ring's simulator. Record it before Segment B, because the token expires.
+
+```bash
+export RING_ACCESS_TOKEN="<one-click token from the Playground>"
+python scripts/live_smoke.py          # gate: must print a real result, not exit 2
+rm -f witness.db
+python -m uvicorn witness.api:app --port 8000
+```
+
+Then, on camera:
+
+1. Select **Ring Partner API** in the source selector. With a token set it reads
+   without the `· not configured` suffix, and the blue simulated banner is
+   absent. (The Integration tab shows *Credentials configured*.)
+2. Press **Observe now**. The response is a real read-only call to the
+   Playground's `/v1/devices`.
+3. Show the timeline entry: it names the source, the observation time, and the
+   device(s) the Playground returned.
+4. **Say:** "That is a real authenticated call to the Ring Partner API — read
+   only, no write scope. Whatever the Playground returned is what you see; we
+   have not invented a device."
+
+**Do not** claim the Playground produced a withdrawal, an encryption transition,
+a duplicate or a late arrival. It cannot. If it returns nothing, show that the
+source reports a successful empty response and say so — that is the product
+working, not a failure.
+
+**If the token cannot be obtained:** skip Segment A entirely, record Segment B
+only, and state on camera and in the submission text that the Ring Playground
+path was not exercised. Do not imply otherwise.
+
+---
+
+## Segment B (local, ~2m20s) — WITNESS's own scenario
+
+Everything from here runs on the labelled simulated source.
 
 ## 0:00 — 0:15 · The problem, in one question
 

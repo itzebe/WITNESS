@@ -18,7 +18,7 @@ them as identical. Almost every design decision traces back to that.
 
 ```bash
 pip install -r requirements.txt
-python -m pytest tests/ -q                  # 310 tests, ~4s
+python -m pytest tests/ -q                  # 313 tests, ~4s
 python -m uvicorn witness.api:app --port 8000
 python scripts/demo_tamper.py               # ledger tamper demo
 node scripts/render_check.js <overview.json> <spec.json> [devices.json|-] [verdicts.json]
@@ -158,6 +158,21 @@ Do not reorder this.
   console/playground`), per Ring's release notes and the hackathon organizers'
   own Devpost answer. `ring-simulated` is **not** it and must never be
   presented as it.
+- **The organizer sanctions a hybrid demo.** On the Devpost forum
+  (`/forum_topics/45462-simulator-on-amazon-ring`), Emerson Sklar (Amazon Ring
+  developer advocate) answered: "The simulator is the Ring Developer Playground"
+  and, on combining sources, "combining them is fine. Use the Playground streams
+  to show the integration working end to end, and your own videos to show
+  scenarios the samples don't cover. Just make it clear in your video and README
+  which footage comes from Ring and which is yours." The Playground's three
+  sample streams (Package, Vehicle, Motion) cannot produce a withdrawal,
+  encryption transition, duplicate or late arrival — so the demo is two
+  labelled segments, and `DEMO_SCRIPT.md` says so.
+- **Playground tokens last 30 minutes.** Ring's release notes: "one-click OAuth
+  token generation (valid 30 minutes)". Record the live segment in one sitting.
+- **Video rule:** under three minutes, public on YouTube or Vimeo, in English,
+  and it "must show the Project functioning on the platform for which it is
+  intended".
 - **Friction logs are worth up to a 10% judging bonus** and are scored on six
   named fields: task attempted, steps taken, expected vs actual, severity,
   workaround used, actionable suggestion. Each `FRICTION_LOG.md` entry carries

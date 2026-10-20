@@ -60,10 +60,9 @@ def test_demo_script_states_the_ring_simulator_requirement():
     otherwise.
     """
     text = _text("DEMO_SCRIPT.md")
-    assert "through a simulator or an actual Ring" in text
-    # The simulated source must be disclaimed as not contacting Ring. The
-    # wording sits inside a blockquote, so assert on the parts, not the layout.
     normalized = " ".join(text.replace(">", " ").split())
+    assert "through a simulator or an actual Ring" in normalized
+    # The simulated source must be disclaimed as not contacting Ring.
     assert "does **not** contact Ring" in normalized
 
 
@@ -130,3 +129,38 @@ def test_submission_does_not_claim_a_mini_challenge_entry():
     """
     text = _text("SUBMISSION.md")
     assert "| Mini challenges participated in | None" in text
+
+
+def test_demo_script_separates_the_live_segment_from_the_local_one():
+    """The organizer permits combining sources, but only if we label which is which.
+
+    Emerson Sklar (Amazon Ring developer advocate) answered on the Devpost
+    forum: "combining them is fine. Use the Playground streams to show the
+    integration working end to end, and your own videos to show scenarios the
+    samples don't cover. Just make it clear in your video and README which
+    footage comes from Ring and which is yours". The script must therefore have
+    a distinct live segment and label the local one, not blur the two.
+    """
+    text = _text("DEMO_SCRIPT.md")
+    assert "Segment A (live" in text
+    assert "Segment B (local" in text
+    # The local segment must never be called the simulator.
+    normalized = " ".join(text.replace(">", " ").split())
+    assert "must never be presented as the Ring simulator" in normalized
+
+
+def test_demo_script_records_the_thirty_minute_token_expiry():
+    """Ring's release notes say the Playground token is valid 30 minutes.
+
+    A recording session that outlives the token would produce a failing live
+    segment. The script has to warn about it.
+    """
+    text = _text("DEMO_SCRIPT.md")
+    assert "valid for 30 minutes" in text
+
+
+def test_submission_quotes_the_organizer_on_combining_sources():
+    """The hybrid approach is only defensible with the organizer's own words."""
+    normalized = " ".join(_text("SUBMISSION.md").replace(">", " ").split())
+    assert "The simulator is the Ring Developer Playground" in normalized
+    assert "combining them is fine" in normalized

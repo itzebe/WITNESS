@@ -6,7 +6,7 @@ Everything a reviewer needs to verify this submission, in one place.
 
 ```bash
 pip install -r requirements.txt
-python -m pytest tests/ -q          # expect 310 passed
+python -m pytest tests/ -q          # expect 313 passed
 python -m uvicorn witness.api:app --port 8000
 ```
 
@@ -66,7 +66,7 @@ We are stating this plainly because the difference matters.
 - Credential redaction: no token appears in any error message or API response.
 - The front end renders every view against real payloads (headless harness,
   `scripts/render_check.js`).
-- 310 automated tests pass.
+- 313 automated tests pass.
 
 ### DOCUMENTED — in the published interface, not exercised by us
 
@@ -162,9 +162,11 @@ rather than buried:
   (`developer.amazon.com/ring/console/playground`). Ring's release notes describe
   it as "a sandbox to test Ring device, media, and account APIs in real-time
   without creating an app, completing account linking, or having an active Ring
-  subscription." Ring's getting-started page defines the Sandbox Environment as
-  "A testing environment with synthetic Ring devices and events that allows you
-  to test your integration without affecting real customer accounts or devices."
+  subscription", and add that it provides "one-click OAuth token generation
+  (valid 30 minutes)". Ring's getting-started page defines the Sandbox
+  Environment as "A testing environment with synthetic Ring devices and events
+  that allows you to test your integration without affecting real customer
+  accounts or devices."
 - The Playground is behind an Amazon Developer sign-in. We verified this: an
   unauthenticated request to the Playground URL redirects to
   `amazon.com/ap/signin`. Reaching it requires an account, and the task
@@ -174,16 +176,40 @@ rather than buried:
   currently scripted demonstrates WITNESS's own scenario, which is not the same
   thing as the Ring simulator.
 
-**This must be resolved before submission.** The honest options are, in order of
-preference: (1) obtain a free Ring developer account, generate a Playground
-token, and record the video against the real simulator; or (2) if that is
-impossible, label the demo plainly as WITNESS's own scenario and state in the
-submission text that the Ring simulator path was not exercised. Option 2 is a
-materially weaker submission. See `docs/FRICTION_LOG.md` entry 1.
+**The organizer has said explicitly how the two sources may be combined.** On
+the hackathon's Devpost forum, Emerson Sklar (Amazon Ring developer advocate)
+answered a question about the simulator:
+
+> "1) Yes. The simulator is the Ring Developer Playground. Its Package, Vehicle
+> and Motion streams are simulated live-view sessions you consume through the
+> API. … So you won't be penalized for building only on the Playground.
+> 2) Not through the Playground itself. Those three streams are the only
+> simulated sources. What you can do is run your own footage through your app's
+> own processing to show that part of the experience. 3) Yes, combining them is
+> fine. Use the Playground streams to show the integration working end to end,
+> and your own videos to show scenarios the samples don't cover. Just make it
+> clear in your video and README which footage comes from Ring and which is
+> yours, so judges can see the Ring API is actually being used."
+
+This maps directly onto WITNESS's structure: the Playground's three sample
+streams cannot produce a withdrawal, an encryption transition, a duplicate
+delivery or a late arrival, and those are the conditions worth demonstrating.
+The organizer permits showing them from our own source **provided we label which
+is which** — which WITNESS does in every payload, every timeline entry and on
+screen.
+
+**This must still be resolved before submission.** The honest options are, in
+order of preference: (1) obtain a free Ring developer account, generate a
+Playground token, and record the live segment against the real simulator,
+labelling the local segment as ours; or (2) if that is impossible, record the
+local segment only and state in the submission text that the Ring simulator path
+was not exercised. Option 2 is a materially weaker submission. See
+`docs/FRICTION_LOG.md` entry 1.
 
 `scripts/live_smoke.py` is the gate for option (1): given a Playground token in
 `RING_ACCESS_TOKEN`, it runs one read-only pass through the real adapter and
-reports exactly what the call established.
+reports exactly what the call established. Playground tokens expire after 30
+minutes, so record the live segment in one sitting.
 
 ## Submission form: what the rules ask us to provide
 
@@ -235,7 +261,7 @@ witness/engine/      Deterministic core: statuses, rules, reconciliation, ledger
 witness/adapters/    Ring (live, read-only) and simulated sources
 witness/api.py       HTTP read model
 web/                 Front end, no build step
-tests/               310 tests
+tests/               313 tests
 scripts/             render_check.js, demo_tamper.py
 docs/                FRICTION_LOG.md, DEMO_SCRIPT.md, SUBMISSION.md
 ```
