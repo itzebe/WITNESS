@@ -33,9 +33,10 @@ from ..engine.models import (
 )
 from .base import DEFAULT_HISTORY_LIMIT, SourceAdapter
 
-#: Monotonic clock offset applied per frame so scenarios are deterministic
-#: relative to each other regardless of wall-clock time.
-FRAME_INTERVAL = timedelta(minutes=10)
+#: Clock offset between successive frames. Frames recede from the current
+#: moment, so the whole scripted session must fit inside the staleness window
+#: (30 minutes): otherwise the demo would flag its own fresh evidence as stale.
+FRAME_INTERVAL = timedelta(minutes=5)
 
 
 @dataclass
@@ -135,8 +136,17 @@ class SimulatedAdapter(SourceAdapter):
         return True
 
     def _now(self):
-        """A clock that advances one interval per frame, for deterministic demos."""
-        return utcnow() + FRAME_INTERVAL * self._cursor
+        """The simulated clock for this frame.
+
+        Frames model a session that has already run, so they recede into the
+        past: the last frame is the current moment and earlier frames are one
+        interval older each. The clock must not run ahead of wall time. An
+        observation stamped in the future would make its own events look
+        future-dated relative to their retrieval, and would make any delay
+        computed against them too small by the accumulated offset.
+        """
+        remaining = len(self._scenario) - 1 - self._cursor
+        return utcnow() - FRAME_INTERVAL * remaining
 
     def _frame(self) -> Frame:
         if not self._scenario:

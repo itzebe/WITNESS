@@ -18,6 +18,7 @@ DOCUMENTED, not VERIFIED.
 from __future__ import annotations
 
 import json
+from datetime import timedelta
 
 import httpx
 import pytest
@@ -32,7 +33,8 @@ from witness.adapters.base import (
 )
 from witness.adapters.ring import HISTORY_EVENT_TYPES_PARAM, RingAdapter, _extract_data_list
 from witness.adapters.simulated import DEFAULT_SCENARIO, SimulatedAdapter
-from witness.engine.models import FailureKind
+from witness.engine.models import FailureKind, utcnow
+from witness.engine.reconcile import reconcile
 
 
 def _mock(token: str = "test-token", handler=None) -> RingAdapter:
@@ -462,6 +464,80 @@ async def test_simulated_reset_returns_to_the_first_frame():
     adapter.advance()
     adapter.reset()
     assert adapter.cursor == 0
+
+
+async def test_observation_and_its_requests_share_one_clock():
+    """A pass must not be split across two clock domains.
+
+    collect_observation used to stamp the observation from a separate wall-clock
+    read while the adapter stamped its own responses. For the simulated source
+    that put the observation before the inventory response it contains, and put
+    later frames' events in the future relative to their own retrieval.
+    """
+    adapter = SimulatedAdapter()
+    while True:
+        obs = await collect_observation(adapter)
+        assert obs.observed_at == obs.inventory.observed_at
+        for event in obs.events:
+            assert event.reported_at <= event.retrieved_at
+            assert event.retrieved_at == obs.history.observed_at
+        if not adapter.advance():
+            break
+
+
+async def test_late_event_delay_matches_the_scripted_offset():
+    """The reported delay must be the delay the scenario describes.
+
+    Frame 3 scripts ev-0900 at -90 minutes. Computing the delay against a
+    retrieval time from another clock domain made it read as 59m 59s.
+    """
+    adapter = SimulatedAdapter()
+    obs = None
+    while True:
+        obs = await collect_observation(adapter)
+        if not adapter.advance():
+            break
+
+    late = [e for e in obs.events if e.event_id == "ev-0900"]
+    assert len(late) == 1
+    assert late[0].retrieved_at - late[0].reported_at == timedelta(minutes=90)
+
+
+async def test_simulated_observations_are_not_dated_in_the_future():
+    """The demo must never present a time that has not happened yet.
+
+    The simulated clock used to run ahead of wall time, so events in later
+    frames were dated in the future -- including relative to the observation
+    that was supposed to have retrieved them.
+    """
+    adapter = SimulatedAdapter()
+    while True:
+        obs = await collect_observation(adapter)
+        assert obs.observed_at <= utcnow()
+        for event in obs.events:
+            assert event.reported_at <= utcnow()
+            assert event.retrieved_at <= utcnow()
+        if not adapter.advance():
+            break
+
+
+async def test_simulated_session_never_reports_itself_stale():
+    """The scripted session must fit inside the staleness window.
+
+    Frames recede from the current moment. If the spacing pushed the earliest
+    frame past the staleness threshold, the demo would flag its own fresh
+    evidence as stale the moment it took a single observation.
+    """
+    adapter = SimulatedAdapter()
+    observations = []
+    while True:
+        observations.append(await collect_observation(adapter))
+        if not adapter.advance():
+            break
+
+    for count in range(1, len(observations) + 1):
+        recon = reconcile("ring-simulated", observations[:count], now=utcnow())
+        assert recon.staleness["stale"] is False, recon.staleness
 
 
 # --------------------------------------------------------------------------

@@ -6,7 +6,7 @@ Everything a reviewer needs to verify this submission, in one place.
 
 ```bash
 pip install -r requirements.txt
-python -m pytest tests/ -q          # expect 283 passed
+python -m pytest tests/ -q          # expect 288 passed
 python -m uvicorn witness.api:app --port 8000
 ```
 
@@ -140,7 +140,7 @@ witness/engine/      Deterministic core: statuses, rules, reconciliation, ledger
 witness/adapters/    Ring (live, read-only) and simulated sources
 witness/api.py       HTTP read model
 web/                 Front end, no build step
-tests/               283 tests
+tests/               288 tests
 scripts/             render_check.js, demo_tamper.py
 docs/                FRICTION_LOG.md, DEMO_SCRIPT.md, SUBMISSION.md
 ```

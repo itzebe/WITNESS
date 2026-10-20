@@ -24,7 +24,6 @@ from ..engine.models import (
     FetchResult,
     Observation,
     parse_iso,
-    utcnow,
 )
 
 #: How much history to request. Ring's history endpoint is polled, so a bounded
@@ -71,9 +70,15 @@ async def collect_observation(
     successful empty response from a failure.
     """
     observation_id = f"obs-{uuid4().hex[:12]}"
-    observed_at = utcnow()
 
     inventory = await _guard(adapter.fetch_inventory(), f"{adapter.source_id}:/v1/devices")
+
+    # The adapter's own timestamp is authoritative for its data. Stamping the
+    # observation from a separate wall-clock read would split one pass across
+    # two clock domains: the observation could be recorded as having happened
+    # before the request it contains, and an event's delay, computed against a
+    # retrieval time from the other domain, would be wrong.
+    observed_at = inventory.observed_at
 
     devices: tuple[DeviceRecord, ...] = ()
     if inventory.ok:
@@ -114,7 +119,11 @@ async def collect_observation(
             f"{adapter.source_id}:/v1/devices/{primary.device_id}/configurations",
         )
         if history.ok:
-            events, unreadable = normalise_event_list(history.data, observed_at)
+            # retrieved_at is when the history request completed, not when the
+            # observation was assembled. Using the observation time would date
+            # every event to a different moment than the response that carried
+            # it, and distort the delay WITNESS reports.
+            events, unreadable = normalise_event_list(history.data, history.observed_at)
             if unreadable:
                 # Mirror the inventory guard: a history payload WITNESS cannot
                 # fully read must not be reinterpreted as a shorter event list.

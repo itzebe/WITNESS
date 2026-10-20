@@ -335,7 +335,7 @@ STATUS_SPEC: dict[Status, StatusSpec] = {
         ),
         trigger=(
             "rule:event_late -- the history request succeeded AND "
-            "(observed_at - reported_at) > EVENT_LATENESS_THRESHOLD."
+            "(retrieved_at - reported_at) > EVENT_LATENESS_THRESHOLD."
         ),
         required_evidence=("history_response",),
         forbidden_conclusions=(
