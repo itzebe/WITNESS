@@ -85,6 +85,62 @@ def test_every_render_path_runs_against_real_payloads(tmp_path):
     assert "OK: all" in result.stdout
 
 
+@pytest.mark.skipif(shutil.which("node") is None, reason="node is not installed")
+def test_overview_verdict_never_contradicts_itself(tmp_path):
+    """The verdict tone and its sentence must agree.
+
+    Frame 1 of the demo observes every device and leaves one question open.
+    The verdict used to warn "2 of 2 device(s) observed; 0 not fully accounted
+    for" -- a warning that reports nothing unresolved, immediately above a
+    sentence saying the rest was left unresolved. Drive the real ``verdictFor``
+    over the shapes the four demo frames actually produce and reject any
+    verdict that warns while claiming nothing is unresolved.
+    """
+    import json
+
+    from fastapi.testclient import TestClient
+
+    from witness.api import create_app
+
+    app = create_app(db_path=str(tmp_path / "verdict.db"))
+    with TestClient(app) as client:
+        client.post("/api/simulated/reset")
+        shapes = {}
+        for frame in range(1, 5):
+            client.post("/api/observe/ring-simulated")
+            shapes[f"frame{frame}"] = client.get(
+                "/api/reconcile/ring-simulated"
+            ).json()
+            client.post("/api/simulated/advance")
+
+        overview = client.get("/api/overview").json()
+        spec = client.get("/api/status-spec").json()
+
+    paths = {
+        "overview": tmp_path / "overview.json",
+        "spec": tmp_path / "spec.json",
+        "verdicts": tmp_path / "verdicts.json",
+    }
+    paths["overview"].write_text(json.dumps(overview))
+    paths["spec"].write_text(json.dumps(spec))
+    paths["verdicts"].write_text(json.dumps(shapes))
+
+    harness = Path(__file__).resolve().parent.parent / "scripts" / "render_check.js"
+    result = subprocess.run(
+        [
+            "node", str(harness),
+            str(paths["overview"]), str(paths["spec"]), "-",
+            str(paths["verdicts"]),
+        ],
+        capture_output=True, text=True, timeout=60,
+    )
+    assert result.returncode == 0, (
+        "a verdict contradicted itself:\n"
+        f"{result.stdout}\n{result.stderr}"
+    )
+    assert "verdict:frame1" in result.stdout
+
+
 def test_index_declares_the_language_and_viewport():
     html = INDEX.read_text()
     assert 'lang="en"' in html

@@ -18,7 +18,7 @@ them as identical. Almost every design decision traces back to that.
 
 ```bash
 pip install -r requirements.txt
-python -m pytest tests/ -q                  # 296 tests, ~4s
+python -m pytest tests/ -q                  # 297 tests, ~4s
 python -m uvicorn witness.api:app --port 8000
 python scripts/demo_tamper.py               # ledger tamper demo
 node scripts/render_check.js <overview.json> <spec.json> [devices.json]
@@ -244,6 +244,27 @@ them distinguishable in the payload.
 
 When a value is coerced, decoded, or unwrapped at a boundary, test what the
 boundary does with a wrong-typed input -- not only with a well-formed one.
+
+### The seventh class: a warning that reports nothing to warn about
+
+A summary line can be true value-by-value and still contradict itself. The
+overview verdict chose its tone from `unresolved > 0 || limitations.length > 0`
+but built its sentence only from `unresolved`. In frame 1 of the demo every
+device is observed and one classification question is open, so the panel warned
+in amber while reading "2 of 2 device(s) observed; **0** not fully accounted
+for", directly above a sentence saying the rest was left unresolved. Every
+number was correct; the combination was false, on the first screen a judge sees.
+
+The two branches are now separate: unresolved devices produce the device-count
+sentence, and an otherwise-clean source with an open question produces an
+open-question-count sentence. `verdictFor` is a pure function so the wording can
+be driven over the four demo frames and checked. Pinned by
+`test_overview_verdict_never_contradicts_itself`, which fails if any frame warns
+while reporting zero unresolved items.
+
+When a branch decides both a tone and a sentence, derive both from the same
+condition -- and when a summary is assembled from more than one count, check the
+rendered sentence, not just the inputs.
 
 ## Submission artifacts
 

@@ -65,7 +65,7 @@ global.Node = FakeNode;
 global.window = { location: { href: 'http://localhost/' } };
 global.fetch = () => Promise.reject(new Error('fetch disabled in render harness'));
 
-const [, , overviewPath, specPath, devicesPath] = process.argv;
+const [, , overviewPath, specPath, devicesPath, verdictCasesPath] = process.argv;
 if (!overviewPath || !specPath) {
   console.error('usage: node scripts/render_check.js <overview.json> <spec.json> [devices.json]');
   process.exit(2);
@@ -83,6 +83,7 @@ const EXPORTS = [
   'renderSourceStrip', 'renderOverview', 'renderCapabilityTable', 'renderUnknownList',
   'assessmentCallout', 'deviceCard', 'timelineItem', 'openDrawer', 'closeDrawer',
   'stat', 'pill', 'fmtTime', 'fmtAge', 'shortHash', 'esc', 'el', 'renderIntegration',
+  'verdictFor',
 ];
 source += `\n;globalThis.__witness = { ${EXPORTS.join(', ')} };\n`;
 
@@ -96,7 +97,7 @@ Object.assign(globalThis, globalThis.__witness);
 
 const overview = JSON.parse(fs.readFileSync(overviewPath, 'utf8'));
 const spec = JSON.parse(fs.readFileSync(specPath, 'utf8'));
-const devices = devicesPath ? JSON.parse(fs.readFileSync(devicesPath, 'utf8')) : null;
+const devices = devicesPath && devicesPath !== '-' ? JSON.parse(fs.readFileSync(devicesPath, 'utf8')) : null;
 
 globalThis.state.sources = overview.sources;
 globalThis.state.statusSpec = Object.fromEntries(spec.statuses.map((s) => [s.status, s]));
@@ -142,6 +143,17 @@ const checks = [
   ['fmtTime', () => { globalThis.fmtTime(null); globalThis.fmtTime('2026-10-20T12:00:00Z'); globalThis.fmtTime('nonsense'); }],
   ['fmtAge', () => { globalThis.fmtAge(null); globalThis.fmtAge(10); globalThis.fmtAge(9000); }],
   ['shortHash', () => { globalThis.shortHash(null); globalThis.shortHash('a'.repeat(64)); }],
+  ['verdictFor', () => {
+    const recon = overview.reconciliations[globalThis.state.sourceId];
+    const verdict = globalThis.verdictFor(recon);
+    if (!verdict || typeof verdict.line !== 'string') throw new Error('no verdict line');
+    // A warning that says "0 not fully accounted for" contradicts itself: it
+    // warns while reporting nothing unresolved. This is the frame-1 shape
+    // (every device observed, one limitation open).
+    if (verdict.tone === 'warn' && /;\s*0 not fully accounted for/.test(verdict.line)) {
+      throw new Error(`self-contradictory verdict: ${verdict.line}`);
+    }
+  }],
 ];
 
 let failures = 0;
@@ -152,6 +164,28 @@ for (const [name, fn] of checks) {
   } catch (error) {
     failures += 1;
     console.error(`  THREW ${name}: ${error.message}`);
+  }
+}
+
+// Optional: drive verdictFor over named reconciliation shapes supplied as JSON.
+// The overview payload only ever holds one source's current shape, so the
+// frame-by-frame wording is checked here instead.
+if (verdictCasesPath) {
+  const cases = JSON.parse(fs.readFileSync(verdictCasesPath, 'utf8'));
+  for (const [name, recon] of Object.entries(cases)) {
+    try {
+      const verdict = globalThis.verdictFor(recon);
+      if (!verdict || typeof verdict.line !== 'string') {
+        throw new Error('no verdict line');
+      }
+      if (verdict.tone === 'warn' && /;\s*0 not fully accounted for/.test(verdict.line)) {
+        throw new Error(`self-contradictory verdict: ${verdict.line}`);
+      }
+      console.log(`  ok    verdict:${name} [${verdict.tone}] ${verdict.line}`);
+    } catch (error) {
+      failures += 1;
+      console.error(`  THREW verdict:${name}: ${error.message}`);
+    }
   }
 }
 

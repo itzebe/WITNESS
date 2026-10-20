@@ -218,6 +218,62 @@ async function refreshOverview() {
   }
 }
 
+/**
+ * The overview verdict, as a pure function of a reconciliation payload.
+ *
+ * Extracted so the wording can be tested directly. The tone and the sentence
+ * have to agree: an earlier version warned "0 not fully accounted for" while
+ * claiming the rest was left unresolved, which is a contradiction a reader can
+ * see on the first screen.
+ */
+function verdictFor(recon) {
+  const hasObservation = Boolean(recon.latest_observation_at);
+  if (!hasObservation) {
+    return {
+      tone: 'unknown',
+      line: 'WITNESS has not observed this source yet.',
+      sub: 'Nothing has been claimed. Run an observation to establish what this source can currently be asked.',
+    };
+  }
+  if (!recon.latest_inventory_ok) {
+    return {
+      tone: 'error',
+      line: 'The last request to this source failed. No device conclusions can be drawn.',
+      sub: 'A failed request is not evidence that a device is offline, missing, or that nothing happened. '
+        + 'It is evidence that WITNESS could not look.',
+    };
+  }
+  const unresolved = recon.counts.not_observed + recon.counts.unknown
+    + recon.counts.withdrawn + recon.counts.unavailable;
+  if (unresolved > 0) {
+    return {
+      tone: 'warn',
+      line: `${recon.counts.observed} of ${recon.counts.total_devices} device(s) observed; `
+        + `${unresolved} not fully accounted for.`,
+      sub: 'WITNESS is reporting what it can establish and is leaving the rest explicitly unresolved '
+        + 'rather than filling the gap with a plausible answer.',
+    };
+  }
+  if (recon.limitations.length > 0) {
+    // Every device is accounted for, but a question WITNESS cannot answer
+    // remains. Counting devices here would print "0 not fully accounted for"
+    // directly above a warning, so count the open questions instead.
+    const n = recon.limitations.length;
+    return {
+      tone: 'warn',
+      line: `All ${recon.counts.observed} device(s) observed; `
+        + `${n} open question${n === 1 ? '' : 's'} WITNESS will not guess at.`,
+      sub: 'Every device the source returned is accounted for, but WITNESS is still reporting '
+        + 'what it cannot establish rather than filling the gap with a plausible answer.',
+    };
+  }
+  return {
+    tone: 'ok',
+    line: `All ${recon.counts.observed} device(s) observed. No unresolved visibility conditions.`,
+    sub: 'Every device the source returned is accounted for in this observation.',
+  };
+}
+
 function renderOverview(overview) {
   const container = $('#overview-content');
   container.innerHTML = '';
@@ -234,36 +290,10 @@ function renderOverview(overview) {
   /* The first screen must answer three questions immediately. */
   const hasObservation = Boolean(recon.latest_observation_at);
   const stale = recon.staleness?.stale;
-
-  let verdictTone = 'unknown';
-  let verdictLine = 'WITNESS has not observed this source yet.';
-  let verdictSub = 'Nothing has been claimed. Run an observation to establish what this source can currently be asked.';
-
-  if (hasObservation && !recon.latest_inventory_ok) {
-    verdictTone = 'error';
-    verdictLine = 'The last request to this source failed. No device conclusions can be drawn.';
-    verdictSub = 'A failed request is not evidence that a device is offline, missing, or that nothing happened. '
-      + 'It is evidence that WITNESS could not look.';
-  } else if (hasObservation) {
-    const unresolved = recon.counts.not_observed + recon.counts.unknown
-      + recon.counts.withdrawn + recon.counts.unavailable;
-    if (!recon.latest_inventory_ok) {
-      verdictTone = 'error';
-      verdictLine = 'The last request to this source failed. No device conclusions can be drawn.';
-      verdictSub = 'A failed request is not evidence that a device is offline, missing, or that nothing happened. '
-        + 'It is evidence that WITNESS could not look.';
-    } else if (unresolved > 0 || recon.limitations.length > 0) {
-      verdictTone = 'warn';
-      verdictLine = `${recon.counts.observed} of ${recon.counts.total_devices} device(s) observed; `
-        + `${unresolved} not fully accounted for.`;
-      verdictSub = 'WITNESS is reporting what it can establish and is leaving the rest explicitly unresolved '
-        + 'rather than filling the gap with a plausible answer.';
-    } else {
-      verdictTone = 'ok';
-      verdictLine = `All ${recon.counts.observed} device(s) observed. No unresolved visibility conditions.`;
-      verdictSub = 'Every device the source returned is accounted for in this observation.';
-    }
-  }
+  const verdict = verdictFor(recon);
+  const verdictTone = verdict.tone;
+  const verdictLine = verdict.line;
+  const verdictSub = verdict.sub;
 
   container.append(
     el('div', { class: `verdict tone-${verdictTone}` },

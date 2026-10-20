@@ -6,7 +6,7 @@ Everything a reviewer needs to verify this submission, in one place.
 
 ```bash
 pip install -r requirements.txt
-python -m pytest tests/ -q          # expect 296 passed
+python -m pytest tests/ -q          # expect 297 passed
 python -m uvicorn witness.api:app --port 8000
 ```
 
@@ -62,7 +62,7 @@ We are stating this plainly because the difference matters.
 - Credential redaction: no token appears in any error message or API response.
 - The front end renders every view against real payloads (headless harness,
   `scripts/render_check.js`).
-- 296 automated tests pass.
+- 297 automated tests pass.
 
 ### DOCUMENTED — in the published interface, not exercised by us
 
@@ -121,6 +121,7 @@ These are not aspirations; they are asserted in the suite.
 | The ledger's limitation is asserted, not hidden | `test_full_rewrite_is_not_detectable_by_a_local_verifier` |
 | No token leaks through the API | `test_ring_connection_never_leaks_a_token` |
 | The UI states the ledger limitation | `test_ui_states_the_ledger_limitation` |
+| The overview verdict never contradicts itself | `test_overview_verdict_never_contradicts_itself` |
 
 ## What WITNESS does not claim
 
@@ -140,7 +141,7 @@ witness/engine/      Deterministic core: statuses, rules, reconciliation, ledger
 witness/adapters/    Ring (live, read-only) and simulated sources
 witness/api.py       HTTP read model
 web/                 Front end, no build step
-tests/               296 tests
+tests/               297 tests
 scripts/             render_check.js, demo_tamper.py
 docs/                FRICTION_LOG.md, DEMO_SCRIPT.md, SUBMISSION.md
 ```
