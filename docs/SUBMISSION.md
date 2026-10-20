@@ -6,9 +6,13 @@ Everything a reviewer needs to verify this submission, in one place.
 
 ```bash
 pip install -r requirements.txt
-python -m pytest tests/ -q          # expect 305 passed
+python -m pytest tests/ -q          # expect 310 passed
 python -m uvicorn witness.api:app --port 8000
 ```
+
+To confirm a Ring Playground token works before recording, run
+`RING_ACCESS_TOKEN="<token>" python scripts/live_smoke.py`. It makes one
+read-only pass through the real adapter and reports what the call established.
 
 Open `http://127.0.0.1:8000`. The simulated source is selected by default.
 
@@ -62,7 +66,7 @@ We are stating this plainly because the difference matters.
 - Credential redaction: no token appears in any error message or API response.
 - The front end renders every view against real payloads (headless harness,
   `scripts/render_check.js`).
-- 305 automated tests pass.
+- 310 automated tests pass.
 
 ### DOCUMENTED — in the published interface, not exercised by us
 
@@ -137,30 +141,65 @@ squarely at the creative end.
 
 ### Ring track requirement: simulator or real device
 
-The rules are explicit: for Ring, "The demo video must show the project working
-through a simulator or an actual Ring device you have for testing."
+The official rules state, verbatim: *"Ring: Any Ring API, SDK, simulator, or
+device listed in Ring's developer documentation is acceptable. The demo video
+must show the project working through a simulator or an actual Ring device you
+have for testing."* A second clause requires the repository to *"demonstrate use
+of your track's required technology at runtime in your code — imported and
+actually called (a library import, an app/backend entry point, or a loaded
+agent/flow/MCP config), not just named in the README."*
 
 This is the submission's single largest compliance risk, and it is stated here
 rather than buried:
 
 - WITNESS ships two sources. `ring` is a real HTTP client for the Ring Partner
-  API. `ring-simulated` is a scenario table WITNESS generates itself; it does
-  **not** contact Ring and does **not** replay the Ring Playground.
-- Ring does provide an official simulator path. The Playground and sandbox are
-  documented ("Sandbox Environment — A testing environment with synthetic Ring
-  devices and events"), and a free Ring developer account reaches them.
-- **We have not run the live path against the Playground or sandbox in this
-  environment, because we hold no Amazon Developer credentials here.** So the
-  video as currently scripted demonstrates WITNESS's own scenario, which is not
-  the same thing as the Ring simulator.
+  API, registered and callable at runtime (`witness/api.py` registers
+  `RingAdapter()` as a source; `POST /api/observe/ring` runs it). The runtime
+  requirement is met by the live adapter.
+- `ring-simulated` is a scenario table WITNESS generates itself; it does **not**
+  contact Ring and does **not** replay the Ring Playground.
+- Ring's official simulator **is** the Developer Playground
+  (`developer.amazon.com/ring/console/playground`). Ring's release notes describe
+  it as "a sandbox to test Ring device, media, and account APIs in real-time
+  without creating an app, completing account linking, or having an active Ring
+  subscription." Ring's getting-started page defines the Sandbox Environment as
+  "A testing environment with synthetic Ring devices and events that allows you
+  to test your integration without affecting real customer accounts or devices."
+- The Playground is behind an Amazon Developer sign-in. We verified this: an
+  unauthenticated request to the Playground URL redirects to
+  `amazon.com/ap/signin`. Reaching it requires an account, and the task
+  constraints prohibit creating one.
+- **We have not run the live path against the Playground in this environment,
+  because we hold no Amazon Developer credentials here.** So the video as
+  currently scripted demonstrates WITNESS's own scenario, which is not the same
+  thing as the Ring simulator.
 
 **This must be resolved before submission.** The honest options are, in order of
-preference: (1) obtain a free Ring developer account, point the `ring` adapter
-at the Playground, and record the video against the real simulator; or (2) if
-that is impossible, label the demo plainly as WITNESS's own scenario and state
-in the submission text that the Ring simulator path was not exercised. Option 2
-is a materially weaker submission. See `docs/FRICTION_LOG.md` for the probing we
-did without credentials.
+preference: (1) obtain a free Ring developer account, generate a Playground
+token, and record the video against the real simulator; or (2) if that is
+impossible, label the demo plainly as WITNESS's own scenario and state in the
+submission text that the Ring simulator path was not exercised. Option 2 is a
+materially weaker submission. See `docs/FRICTION_LOG.md` entry 1.
+
+`scripts/live_smoke.py` is the gate for option (1): given a Playground token in
+`RING_ACCESS_TOKEN`, it runs one read-only pass through the real adapter and
+reports exactly what the call established.
+
+## Submission form: what the rules ask us to provide
+
+The submission form requires more than a repo and a video. From the official
+rules, we must supply, and here is where each answer lives:
+
+| Required item | Our answer |
+|---|---|
+| Text description of features and functionality | `README.md`; this file |
+| Public code repository URL, open source, license visible in the About section | `LICENSE` (MIT), repo must be pushed public with the license detected by GitHub |
+| Demo video < 3 min, public on YouTube/Vimeo, English | `docs/DEMO_SCRIPT.md` — recording pending the compliance gate above |
+| **Product feedback** for each tool/API/SDK: what we used it for, what worked, what needs work, onboarding, and would we build with it again | `docs/FRICTION_LOG.md` |
+| Primary track | Ring |
+| Mini challenges participated in | None (see the track table above for why) |
+| Optional feature requests (description, why it matters, priority) | `docs/FRICTION_LOG.md` "actionable suggestion" lines |
+| **Optional friction logs** (task, steps, expected vs actual, severity, workaround, suggestion) — worth up to a 10% judging bonus | `docs/FRICTION_LOG.md`, each entry's **friction record** |
 
 ## Honesty boundaries enforced by tests
 
@@ -196,7 +235,7 @@ witness/engine/      Deterministic core: statuses, rules, reconciliation, ledger
 witness/adapters/    Ring (live, read-only) and simulated sources
 witness/api.py       HTTP read model
 web/                 Front end, no build step
-tests/               305 tests
+tests/               310 tests
 scripts/             render_check.js, demo_tamper.py
 docs/                FRICTION_LOG.md, DEMO_SCRIPT.md, SUBMISSION.md
 ```

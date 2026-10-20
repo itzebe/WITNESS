@@ -12,6 +12,11 @@ Confidence labels used throughout:
   exercise it.
 - **UNVERIFIED** — we could not confirm it.
 
+Each entry closes with a **friction record** covering the six fields the
+hackathon asks for — the task attempted, the steps taken, the expected versus
+actual result, the severity, the workaround used, and an actionable suggestion —
+so a reviewer can read any entry in that shape.
+
 ---
 
 ## 1. Ring developer access is gated behind a login we could not satisfy
@@ -46,6 +51,30 @@ every Ring capability `DOCUMENTED` rather than `VERIFIED`. This is why the
 product ships with a clearly-labelled simulated source: without one, we could
 demonstrate nothing about withdrawal, encryption transitions, duplicates or late
 arrival, because the Playground does not let you manufacture those conditions.
+
+**Friction record**
+
+- **Task attempted:** Reach the Ring Partner API to obtain a credential and make
+  one authenticated read-only call.
+- **Steps taken:** Probed `api.amazonvision.com` unauthenticated, comparing a
+  known route against a nonexistent one (table above); then attempted to reach
+  the Playground at `developer.amazon.com/ring/console/playground`.
+- **Expected:** A real route would answer `401` and a nonexistent route `404`,
+  confirming the host is live; the Playground would issue a token.
+- **Actual:** The host behaves as expected — `401` on `/v1/devices`, `404` on a
+  bogus path. The Playground redirected to an Amazon sign-in, so no token could
+  be obtained without creating an account.
+- **Severity:** High — this is the single largest constraint on the project.
+- **Workaround used:** Built the live adapter from the published interface,
+  tested its full HTTP behaviour against `httpx.MockTransport`, marked every
+  Ring capability `DOCUMENTED` rather than `VERIFIED`, and shipped a
+  clearly-labelled simulated source for conditions the Playground cannot
+  manufacture.
+- **Actionable suggestion:** The Playground is a good sandbox, but it is gated
+  behind an Amazon Developer sign-in. A documented sandbox-token flow that works
+  from a credential-less CI environment — or a hackathon-scoped token — would let
+  automated and unauthenticated builds exercise the live path instead of only the
+  mock transport.
 
 **Friction rating: high.** This is the single largest constraint on the project.
 
@@ -92,6 +121,25 @@ device data even if we had found it. The lesson is the one the product is about:
 404, and wrote down a conclusion the evidence did not support. That is exactly
 the failure mode WITNESS exists to prevent, and we made it ourselves.
 
+**Friction record**
+
+- **Task attempted:** Find a Ring MCP server, to let an agent reason over Ring
+  data without writing a bespoke client.
+- **Steps taken:** Probed a set of conventional MCP paths on the API host
+  (`/mcp`, `/mcp/sse`, `/v1/mcp`, `/api/mcp`, `POST /mcp`; table above).
+- **Expected:** If a Ring MCP server existed, it would be mounted on the API host
+  at a conventional path.
+- **Actual:** Every probe returned `404`. The assumption was wrong: Ring
+  documents the server at a different host entirely
+  (`knowledge.appstore-mcp.ring.amazon.dev/mcp`), which we had not read.
+- **Severity:** Medium — a documented feature was misread as a dead end.
+- **Workaround used:** Read the page naming the server and re-probed the correct
+  host (`GET → 405`, `POST → 200`), then corrected this entry.
+- **Actionable suggestion:** The MCP server host is not discoverable by
+  convention from the API reference. Linking it from the API documentation
+  landing page, next to the other quick-start links, would have prevented the
+  wrong-host probe.
+
 **Friction rating: medium.** We misread a documented feature as a dead end. The
 correction costs nothing, but the original entry would have been a false claim in
 front of judges who know the Ring docs better than we do.
@@ -127,6 +175,25 @@ expose the field, and it will not infer one. This became one of the product's
 clearest demonstrations — a system that says "I cannot tell you what this was,
 and here is the specific reason" is more trustworthy than one that guesses.
 
+**Friction record**
+
+- **Task attempted:** Attach an event classification (person / vehicle / animal /
+  package) to events retrieved from the history endpoint.
+- **Steps taken:** Compared the fields on the motion webhook payload against the
+  fields on the event-history response.
+- **Expected:** The classification available on the webhook would be present on,
+  or linkable to, the history record for the same event.
+- **Actual:** The history endpoint does not carry the field, and there is no
+  identifier linking a webhook to a history record. Matching on timestamp and
+  device id is ambiguous — two motion events seconds apart on one camera are
+  indistinguishable.
+- **Severity:** High — it removes a capability a reasonable product would offer.
+- **Workaround used:** Report `CLASSIFICATION_UNAVAILABLE` with the specific
+  reason, and refuse to infer a classification from timing.
+- **Actionable suggestion:** Expose the classification (or a stable event
+  identifier shared with the webhook payload) on the history endpoint. Without
+  it, retrospective classification is not safely derivable by any consumer.
+
 **Friction rating: high, and productive.** This friction is the product.
 
 ---
@@ -151,6 +218,26 @@ device conclusion at all. A successful response missing a device increments a
 consecutive-absence counter, and only at or above the threshold does it become
 `SOURCE_WITHDRAWN` — and even then the explanation names the several causes it
 cannot distinguish between.
+
+**Friction record**
+
+- **Task attempted:** Determine, from the API alone, why a device stopped
+  appearing in the inventory.
+- **Steps taken:** Compared the inventory response for a device that is present,
+  absent, and absent-because-the-request-failed.
+- **Expected:** Some field or status code would distinguish "unlinked",
+  "encrypted", "removed", and "request failed".
+- **Actual:** All four look alike in the payload — a shortened or empty list with
+  no explanation. A transport failure is distinguishable only by the absence of
+  a success status, which a naive consumer ignores.
+- **Severity:** High — the core design problem.
+- **Workaround used:** Separate the failure at the transport layer before any
+  rule runs (`SOURCE_UNAVAILABLE` produces no device conclusion), and require a
+  consecutive-absence threshold before asserting `SOURCE_WITHDRAWN`, naming the
+  causes it cannot distinguish.
+- **Actionable suggestion:** A per-device reason field on the inventory response
+  (for example "not shared with this integration") would let consumers report
+  the real cause instead of an enumeration of possibilities.
 
 **Friction rating: high.** This is the core design problem, and it is not solved
 by the API. It has to be solved by the consumer.
@@ -185,6 +272,26 @@ presence (`OBSERVED`, `SOURCE_WITHDRAWN`).
 separate statuses rather than one "gone" state, and the reason the withdrawal
 explanation explicitly lists encryption as a possible cause it cannot rule out.
 
+**Friction record**
+
+- **Task attempted:** Represent the state of an encrypted device accurately.
+- **Steps taken:** Read Ring's developer FAQ on TAKE and E2EE, and compared the
+  two modes' observable behaviour against the API responses.
+- **Expected:** One "encrypted" state with one behaviour.
+- **Actual:** Two modes with different behaviour — E2EE removes the device from
+  the inventory entirely; TAKE keeps it visible but returns content the app
+  cannot read. The configurations payload exposes a single boolean
+  (`e2e_encryption.enabled`) that does not say which mode is in force.
+- **Severity:** Medium — a real constraint we designed around without being able
+  to reproduce it.
+- **Workaround used:** Split content readability (`SOURCE_ENCRYPTED`,
+  `CONTENT_VISIBLE`, `CONTENT_UNAVAILABLE`) from presence (`OBSERVED`,
+  `SOURCE_WITHDRAWN`), and list encryption among the causes a withdrawal cannot
+  rule out.
+- **Actionable suggestion:** If the API can report which encryption mode is
+  active, exposing it would let consumers distinguish "visible but unreadable"
+  from "gone", which today require different user-facing messages.
+
 **Friction rating: medium.** A real constraint we designed around without being
 able to reproduce it. The behaviour itself is documented, not inferred.
 
@@ -201,6 +308,25 @@ because of encryption, retention limits, or a filter we do not control.
 reports the successful retrieval and states what it does not establish. This is
 the principle the whole product rests on: *missing evidence is not proof that
 nothing happened.*
+
+**Friction record**
+
+- **Task attempted:** Report whether anything happened at a device during a
+  window, using the history endpoint.
+- **Steps taken:** Requested event history for a device and considered what an
+  empty result establishes.
+- **Expected:** An empty result would mean no events occurred.
+- **Actual:** An empty result is consistent with both "nothing happened" and
+  "events happened but were not returned to this integration" — through
+  encryption, retention limits, or a filter outside our control.
+- **Severity:** Medium — no API change would fix it; it is inherent in reading a
+  filtered view of someone else's data.
+- **Workaround used:** Never render an empty event list as "nothing happened".
+  Report the successful retrieval and state explicitly what it does not
+  establish.
+- **Actionable suggestion:** Where a device's events are withheld from an
+  integration rather than genuinely absent, a distinguishing marker on the
+  response would let consumers say so instead of hedging.
 
 **Friction rating: medium.** No API change would fix this; it is inherent in
 reading a filtered view of someone else's data.
@@ -233,6 +359,25 @@ documented in enough detail to rely on." That was wrong, and we are correcting
 it. The numbers are published; we simply had not read them when we wrote the
 entry.
 
+**Friction record**
+
+- **Task attempted:** Choose a backoff and retry policy we could rely on.
+- **Steps taken:** Read the published rate-limit and webhook-retry documentation
+  instead of guessing.
+- **Expected:** We would have to invent a policy against an imagined contract.
+- **Actual:** The numbers are published (100 TPS per `client_id`;
+  `X-RateLimit-*` and `Retry-After` headers; a six-step webhook retry schedule
+  with a dead-letter queue and 72-hour retention). The documentation was
+  sufficient; our first draft of this entry simply had not read it.
+- **Severity:** Low — a documentation-reading miss on our side, corrected before
+  submission.
+- **Workaround used:** None needed. The adapter still classifies `429` as
+  `RATE_LIMITED` and does not retry silently — a deliberate product choice, so a
+  rate limit is surfaced as a fact rather than blurring when the observation was
+  actually taken.
+- **Actionable suggestion:** None. Recorded because our first version overstated
+  a negative.
+
 **Friction rating: low.** A documentation-reading miss on our side, corrected
 before submission. The adapter's no-retry behaviour stands on its own merits.
 
@@ -251,6 +396,56 @@ before submission. The adapter's no-retry behaviour stands on its own merits.
 - We did **not** record a Ring session and replay it as if it were live. The
   simulated source is generated from a scenario table, and it says so in every
   payload it produces.
+
+---
+
+## Product feedback (required by the submission form)
+
+The submission form asks five questions about each tool, API or SDK we used. We
+used one: the **Ring Partner API**, via the official `ring-api-helloworld`
+sample and Ring's developer documentation.
+
+**Which developer tools, APIs and SDKs did you use, and for what?**
+The Ring Partner API, read-only. We used the documented endpoints
+`GET /v1/devices`, `GET /v1/devices/{id}/status`,
+`GET /v1/devices/{id}/configurations` and
+`GET /v1/history/devices/{id}/events`. We read Ring's developer documentation
+and the official Python sample scripts (`scripts/` in `ring-api-helloworld`) to
+confirm endpoint paths and the JSON:API envelope. We did **not** use the Ring
+MCP server (it is a documentation-knowledge server, not a device-data server)
+and did **not** register an app or use OAuth.
+
+**What worked well?** The API surface is small and consistently shaped: every
+response uses the same JSON:API envelope, and the endpoint paths are unambiguous
+once found. The documentation's honesty about its own gaps is unusually good —
+the developer FAQ states plainly that E2EE devices "are not returned by any Ring
+Partner API", which let us design the presence/content split correctly rather
+than guessing. The published rate limits and webhook retry schedule meant we did
+not have to invent a backoff policy.
+
+**What needs work?** Three things, in order of impact on us:
+1. The Playground, the documented sandbox, is gated behind an Amazon Developer
+   sign-in, so a credential-less build cannot exercise the live path. See
+   friction 1.
+2. The event-history endpoint does not carry the classification the webhook
+   payload has, and nothing links a webhook to a history record. Retrospective
+   classification is therefore not safely derivable. See friction 3.
+3. A device that stops appearing in the inventory gives no reason — unlinked,
+   encrypted, removed and request-failed are indistinguishable in the payload.
+   See friction 4.
+
+**How was your onboarding experience (zero to hello world)?** Documentation-led
+rather than interactive. The endpoint list and the sample scripts got us to a
+correctly-shaped request quickly, but "hello world" — a first authenticated
+response — was not reachable without an account, so our hello world was a mock
+transport rather than a live call. The gap is not conceptual, it is access.
+
+**Would you build with these devices and services again? Yes.** The API is
+read-only by design and well-documented, and the constraints it imposes (what it
+will not tell you) are stated rather than hidden. That is the property we most
+want in a source we have to reason about. The one change that would make it
+substantially easier is an access path for unauthenticated or CI environments,
+as noted in friction 1.
 
 ---
 

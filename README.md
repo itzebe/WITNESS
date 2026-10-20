@@ -81,13 +81,21 @@ Without a token, WITNESS **does not contact Ring at all**. It reports the source
 as unconfigured rather than as an empty device list — which is the product
 working as designed.
 
+To confirm a token works before recording a demo, run the access-gate script. It
+makes one read-only pass through the real adapter and reports exactly what the
+call established, without printing the token:
+
+```bash
+RING_ACCESS_TOKEN="<token>" python scripts/live_smoke.py
+```
+
 ## Tests
 
 ```bash
 python -m pytest tests/ -q
 ```
 
-305 tests. The suite covers the status taxonomy, the reconciliation rules, the
+310 tests. The suite covers the status taxonomy, the reconciliation rules, the
 ledger's tamper detection *and its documented limits*, the Ring adapter's full
 HTTP surface against a mock transport, the service pipeline, the HTTP API, and
 the front end (including a headless harness that runs every render function
@@ -122,7 +130,7 @@ witness/
   service.py        Application service; wires observations to the ledger
   api.py            FastAPI read model
 web/                Front end (no build step)
-tests/              305 tests
+tests/              310 tests
 docs/               Friction log, demo script, submission notes
 ```
 

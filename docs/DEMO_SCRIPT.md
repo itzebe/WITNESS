@@ -5,18 +5,25 @@ script is something the product actually does and can be re-run live.
 
 > **Compliance gate — read before recording.** The Ring track rules say: *"The
 > demo video must show the project working through a simulator or an actual Ring
-> device you have for testing."* The scenario below runs on WITNESS's **own**
-> simulated source (`ring-simulated`), which is generated from a scenario table
-> and does **not** contact Ring. That is not the Ring simulator.
+> device you have for testing."* Ring's official simulator **is** the Ring
+> Developer Playground (`developer.amazon.com/ring/console/playground`) — the
+> hackathon's own organizers confirmed on the Devpost forum that "the simulator
+> is the Ring Developer Playground."
+>
+> The scenario below runs on WITNESS's **own** simulated source
+> (`ring-simulated`), which is generated from a scenario table and does **not**
+> contact Ring. That is not the Ring simulator, and it must not be presented as
+> one.
 >
 > To satisfy the rule, record the demo with the **live `ring` source pointed at
-> the Ring Developer Playground**, whose one-click token and synthetic devices
-> are the documented sandbox. Obtain a free Ring developer account, generate a
-> Playground token, and run with `RING_ACCESS_TOKEN` set (see README). If the
-> Playground does not expose a condition you want to show (for example the
-> encryption transition), show the live source for what it does establish, and
-> state plainly which frames come from WITNESS's own scenario. Do not present
-> the simulated source as the Ring simulator. See `docs/SUBMISSION.md`.
+> the Ring Developer Playground**. The Playground is behind an Amazon Developer
+> sign-in; obtain a free account, generate a one-click token, and run with
+> `RING_ACCESS_TOKEN` set (see README, and `scripts/live_smoke.py` to confirm the
+> token works before recording). If the Playground does not expose a condition
+> you want to show (for example the encryption transition), show the live source
+> for what it does establish, and state plainly which frames come from WITNESS's
+> own scenario. Do not present the simulated source as the Ring simulator. See
+> `docs/SUBMISSION.md`.
 
 Setup before recording:
 

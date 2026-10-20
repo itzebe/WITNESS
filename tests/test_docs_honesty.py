@@ -61,4 +61,72 @@ def test_demo_script_states_the_ring_simulator_requirement():
     """
     text = _text("DEMO_SCRIPT.md")
     assert "through a simulator or an actual Ring" in text
-    assert "does **not** contact Ring" in text
+    # The simulated source must be disclaimed as not contacting Ring. The
+    # wording sits inside a blockquote, so assert on the parts, not the layout.
+    normalized = " ".join(text.replace(">", " ").split())
+    assert "does **not** contact Ring" in normalized
+
+
+def test_submission_does_not_claim_playground_access():
+    """We did not obtain a Playground token; the docs must not imply we did.
+
+    The Playground is Ring's official simulator and is behind an Amazon
+    Developer sign-in. No credential exists in this environment, so any wording
+    that reads as "we used the Playground" would be false.
+    """
+    text = _text("SUBMISSION.md")
+    assert "We have not run the live path against the Playground" in text
+    # The two escape hatches the rules actually offer must both be stated.
+    assert "obtain a free Ring developer account" in text
+    assert "was not exercised" in text
+
+
+def test_submission_states_the_runtime_requirement_is_met_by_the_live_adapter():
+    """The rules require the track technology be *called* at runtime, not named.
+
+    WITNESS registers RingAdapter as a source and runs it on
+    POST /api/observe/ring. The submission must point at that, so a reviewer
+    does not have to take the runtime claim on trust.
+    """
+    text = _text("SUBMISSION.md")
+    assert "witness/api.py" in text
+    assert "POST /api/observe/ring" in text
+
+
+def test_friction_log_entries_carry_the_six_scored_fields():
+    """The rules score friction logs on six named fields, worth up to 10%.
+
+    Each entry must expose all six, or a reviewer scoring the bonus has to
+    reconstruct them from prose.
+    """
+    text = _text("FRICTION_LOG.md")
+    for field in (
+        "**Task attempted:**",
+        "**Steps taken:**",
+        "**Expected:**",
+        "**Actual:**",
+        "**Severity:**",
+        "**Workaround used:**",
+        "**Actionable suggestion:**",
+    ):
+        assert text.count(field) >= 5, f"friction record field missing: {field}"
+
+
+def test_friction_log_answers_the_required_product_feedback_questions():
+    """The submission form requires five specific product-feedback answers."""
+    text = _text("FRICTION_LOG.md")
+    assert "Which developer tools, APIs and SDKs did you use, and for what?" in text
+    assert "What worked well?" in text
+    assert "What needs work?" in text
+    assert "How was your onboarding experience" in text
+    assert "Would you build with these devices and services again?" in text
+
+
+def test_submission_does_not_claim_a_mini_challenge_entry():
+    """WITNESS enters Ring only. Claiming a mini challenge would be false.
+
+    AWS Builder needs an AWS service integration (WITNESS calls none), and Open
+    Source needs a contribution to another public repo during the window.
+    """
+    text = _text("SUBMISSION.md")
+    assert "| Mini challenges participated in | None" in text
