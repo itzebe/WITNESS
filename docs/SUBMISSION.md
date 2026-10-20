@@ -6,7 +6,7 @@ Everything a reviewer needs to verify this submission, in one place.
 
 ```bash
 pip install -r requirements.txt
-python -m pytest tests/ -q          # expect 295 passed
+python -m pytest tests/ -q          # expect 296 passed
 python -m uvicorn witness.api:app --port 8000
 ```
 
@@ -41,7 +41,7 @@ curl -s localhost:8000/api/reconcile/ring-simulated | python -m json.tool
 python scripts/demo_tamper.py
 ```
 
-This builds a chain, tampers with it six different ways, and shows each is
+This builds a chain, tampers with it five different ways, and shows each is
 detected and named. It then demonstrates the limitation the product openly
 admits: a full rewrite verifies cleanly.
 
@@ -62,7 +62,7 @@ We are stating this plainly because the difference matters.
 - Credential redaction: no token appears in any error message or API response.
 - The front end renders every view against real payloads (headless harness,
   `scripts/render_check.js`).
-- 295 automated tests pass.
+- 296 automated tests pass.
 
 ### DOCUMENTED — in the published interface, not exercised by us
 
@@ -140,7 +140,7 @@ witness/engine/      Deterministic core: statuses, rules, reconciliation, ledger
 witness/adapters/    Ring (live, read-only) and simulated sources
 witness/api.py       HTTP read model
 web/                 Front end, no build step
-tests/               295 tests
+tests/               296 tests
 scripts/             render_check.js, demo_tamper.py
 docs/                FRICTION_LOG.md, DEMO_SCRIPT.md, SUBMISSION.md
 ```

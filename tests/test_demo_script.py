@@ -35,6 +35,25 @@ def test_tamper_demo_detects_every_advertised_class():
         assert reason in out, f"{reason} was not exercised"
 
 
+def test_tamper_demo_summary_count_matches_the_cases_shown():
+    """The summary word must equal the number of classes actually detected.
+
+    A hardcoded count drifts: the script once printed "Six tamper classes
+    detected" over five cases. The count is now derived from the detected list,
+    so this checks the printed word against the cases reported in the same run.
+    """
+    result = subprocess.run(
+        [sys.executable, str(SCRIPT)], capture_output=True, text=True, timeout=60
+    )
+    out = result.stdout
+    detected = out.count("chain INVALID")
+    words = {1: "One", 2: "Two", 3: "Three", 4: "Four", 5: "Five", 6: "Six"}
+    expected = f"{words[detected]} tamper classes detected"
+    assert expected in out, (
+        f"summary does not match the {detected} detected classes:\n{out}"
+    )
+
+
 def test_tamper_demo_states_the_limitation():
     """The demo must not oversell the ledger."""
     result = subprocess.run(

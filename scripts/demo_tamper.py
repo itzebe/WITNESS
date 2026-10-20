@@ -73,6 +73,14 @@ def report(label: str, ledger: Ledger, expect_valid: bool) -> bool:
     return ok
 
 
+def tamper_report(label: str, ledger: Ledger, detected: list[str]) -> bool:
+    """Report one tampering case, recording it only when actually detected."""
+    ok = report(label, ledger, expect_valid=False)
+    if ok:
+        detected.append(label)
+    return ok
+
+
 def main() -> int:
     print(f"{BOLD}WITNESS — evidence ledger tamper detection{RESET}")
     print(f"{DIM}Five-record chain. SHA-256 hash links. Canonical JSON.{RESET}")
@@ -82,32 +90,34 @@ def main() -> int:
     baseline = build()
     failures += not report("1. Baseline: untouched chain", baseline, expect_valid=True)
 
+    detected: list[str] = []
+
     # --- Modification -------------------------------------------------------
     modified = build()
     modified.records[2].payload = {"presence": "FORGED"}
-    failures += not report("2. Modification: a record's payload is edited", modified, expect_valid=False)
+    failures += not tamper_report("2. Modification: a record's payload is edited", modified, detected)
 
     # --- Deletion -----------------------------------------------------------
     deleted = build()
     del deleted._records[2]
-    failures += not report("3. Deletion: a middle record is removed", deleted, expect_valid=False)
+    failures += not tamper_report("3. Deletion: a middle record is removed", deleted, detected)
 
     # --- Reordering ---------------------------------------------------------
     reordered = build()
     reordered._records[1], reordered._records[3] = reordered._records[3], reordered._records[1]
-    failures += not report("4. Reordering: two records are swapped", reordered, expect_valid=False)
+    failures += not tamper_report("4. Reordering: two records are swapped", reordered, detected)
 
     # --- Link breakage ------------------------------------------------------
     relinked = build()
     relinked.records[3].prev_hash = "f" * 64
-    failures += not report("5. Link breakage: prev_hash is rewritten", relinked, expect_valid=False)
+    failures += not tamper_report("5. Link breakage: prev_hash is rewritten", relinked, detected)
 
     # --- Status laundering --------------------------------------------------
     laundered = build()
     laundered.records[4].status = "OBSERVED"
-    failures += not report(
+    failures += not tamper_report(
         "6. Status laundering: a withdrawal is relabelled as observed",
-        laundered, expect_valid=False,
+        laundered, detected,
     )
 
     # --- The documented limitation -----------------------------------------
@@ -144,7 +154,12 @@ def main() -> int:
         print(f"{RED}{BOLD}{failures} check(s) behaved unexpectedly.{RESET}")
         return 1
     print(f"{GREEN}{BOLD}All tamper-detection checks behaved as documented.{RESET}")
-    print(f"{DIM}Six tamper classes detected. One limitation stated plainly.{RESET}")
+    # Report the count actually demonstrated rather than a number written by
+    # hand, so this summary cannot drift away from the cases above.
+    words = {1: "One", 2: "Two", 3: "Three", 4: "Four", 5: "Five",
+             6: "Six", 7: "Seven", 8: "Eight", 9: "Nine"}
+    word = words.get(len(detected), str(len(detected)))
+    print(f"{DIM}{word} tamper classes detected. One limitation stated plainly.{RESET}")
     return 0
 
 
