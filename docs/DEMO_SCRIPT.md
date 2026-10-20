@@ -101,7 +101,7 @@ path was not exercised. Do not imply otherwise.
 
 Everything from here runs on the labelled simulated source.
 
-## 0:00 — 0:15 · The problem, in one question
+## B · 0:00 — 0:15 · The problem, in one question
 
 **On screen:** the empty Overview tab.
 
@@ -117,7 +117,7 @@ about AI.
 
 ---
 
-## 0:15 — 0:35 · What WITNESS is
+## B · 0:15 — 0:35 · What WITNESS is
 
 **On screen:** press **Observe now** once. The verdict panel fills in: two
 devices observed, one limitation.
@@ -134,7 +134,7 @@ not answer is listed here, with the specific reason."
 
 ---
 
-## 0:35 — 1:05 · The withdrawal — and the false one it refuses to make
+## B · 0:35 — 1:05 · The withdrawal — and the false one it refuses to make
 
 **On screen:** Integration tab. Press **Advance scenario** once. Back to
 Overview. Press **Observe now**.
@@ -172,7 +172,7 @@ WITNESS cannot distinguish those, and it says so instead of picking one."
 
 ---
 
-## 1:05 — 1:30 · A conclusion you can check
+## B · 1:05 — 1:30 · A conclusion you can check
 
 **On screen:** click **Evidence detail** on the withdrawal card.
 
@@ -186,7 +186,7 @@ tab.
 
 ---
 
-## 1:30 — 2:00 · Integrity, stated honestly
+## B · 1:30 — 2:00 · Integrity, stated honestly
 
 **On screen:** Integrity tab. The green "Chain verified" banner.
 
@@ -209,27 +209,35 @@ one that explained its own boundary.
 
 ---
 
-## 2:00 — 2:25 · The live integration
+## B · 2:00 — 2:25 · The integration, stated honestly
 
 **On screen:** Integration tab, Ring Partner API section.
 
-**Say:** "This is a real client for the Ring Partner API — read-only, bearer
-token, real HTTP. In this environment we have no Amazon Developer credentials, so
-it has not made an authenticated call. WITNESS reports its capabilities as
-'Documented', never 'Verified', because that is what we can honestly claim."
+Use the wording that matches what you actually recorded:
+
+- **If you recorded Segment A live:** "You saw this make a real authenticated
+  call at the start. It is read-only, bearer token, real HTTP — no write scope.
+  Ring's capabilities are reported as 'Documented' rather than 'Verified',
+  because 'Verified' is reserved for behaviour we have exercised ourselves."
+- **If you did not (no Playground access):** "This is a real client for the Ring
+  Partner API — read-only, bearer token, real HTTP. We have no Amazon Developer
+  credentials in this environment, so it has not made an authenticated call, and
+  WITNESS says so rather than pretending otherwise."
 
 **Say:** "Set a token and the same code path runs live. Without one, it refuses
 to contact Ring and reports the source as unconfigured — rather than showing you
 an empty device list, which is exactly the bug this product exists to fix."
 
 **Say:** "The simulated source is labelled simulated in every payload, every
-timeline entry, and on screen. It exists because the Playground cannot produce
-withdrawal, encryption transitions, duplicate delivery or late arrival — and
-those are the conditions worth demonstrating."
+timeline entry, and on screen. It exists because the Playground's three sample
+streams cannot produce withdrawal, encryption transitions, duplicate delivery or
+late arrival — and those are the conditions worth demonstrating. The Ring
+organizers confirmed this split is acceptable provided we say which footage is
+which, and we do."
 
 ---
 
-## 2:25 — 2:45 · Close
+## B · 2:25 — 2:45 · Close
 
 **On screen:** Method tab — the full status taxonomy.
 
@@ -245,7 +253,10 @@ is the difference between a notification and something you can rely on."
 
 ## What not to do
 
-- Do not claim a live Ring call was made. It was not.
+- Do not claim a live Ring call was made **unless Segment A actually shows one**.
+  If it was not recorded, say so.
+- Do not present the local segment as the Ring Playground. Say which segment is
+  which.
 - Do not claim the ledger is immutable or tamper-proof. It is tamper-evident.
 - Do not claim WITNESS detects emergencies, or protects anyone, or makes anyone
   safer. It reports evidence quality.
@@ -253,6 +264,55 @@ is the difference between a notification and something you can rely on."
   demo.
 - Do not show the Method tab for more than a few seconds. It is depth, not the
   story.
+
+## Running order and the three-minute budget
+
+The rules require the video be **under three minutes**. Two segments do not both
+fit at full length, so:
+
+| Plan | Segment A | Segment B | Total |
+|---|---|---|---|
+| With Playground access | ~25s live | trimmed to ~2m25s | ~2m50s |
+| Without Playground access | none | full ~2m45s | ~2m45s |
+
+If you have Segment A, cut the Method-tab beat and the integrity walk-through to
+their shortest forms. The live segment is worth more to the Ring track than the
+extra depth, because it is the evidence the track requires. Put Segment A first,
+so a judge who stops early still sees the real integration.
+
+## Recording checklist
+
+Before you press record:
+
+- [ ] `python -m pytest -q` passes (313 tests).
+- [ ] `node --check web/app.js` passes.
+- [ ] `python scripts/demo_tamper.py` reports five classes detected, one
+      limitation stated.
+- [ ] If recording Segment A: `python scripts/live_smoke.py` prints a real
+      result and exits 0 — **not** exit 2 (not configured) or exit 3 (refused).
+      A token must have been generated within the last 30 minutes.
+- [ ] `witness.db` deleted so the run starts from a clean ledger.
+- [ ] The simulated-source banner is visible whenever `ring-simulated` is
+      selected.
+- [ ] You know which segment is which, and you say so on camera.
+
+During the recording:
+
+- [ ] Segment A (if recorded) shows a real authenticated read-only call, and you
+      do not claim the Playground produced a condition it cannot.
+- [ ] Segment B is described as WITNESS's own scenario, never as the simulator.
+- [ ] The empty-response-versus-failed-request distinction is shown, not just
+      described.
+- [ ] The ledger check shows tampering detected, and the one limitation it
+      cannot detect is stated out loud.
+- [ ] No emergency, medical, safety or reliability claim is made.
+
+After:
+
+- [ ] Total length is under three minutes.
+- [ ] Uploaded publicly to YouTube or Vimeo, in English.
+- [ ] The submission text repeats which footage came from Ring and which is
+      ours.
 
 ## Fallback if the live server will not start
 
