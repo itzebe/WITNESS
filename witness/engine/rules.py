@@ -257,12 +257,23 @@ def rule_inventory_absent(
 # --------------------------------------------------------------------------
 
 
-def rule_content_state(obs: Observation, device: DeviceRecord) -> Assessment:
+def rule_content_state(
+    obs: Observation,
+    device: DeviceRecord,
+    reading_observed_at: datetime | None = None,
+) -> Assessment:
     """rule:content_encrypted / rule:content_not_encrypted / rule:content_state_unknown
 
     Reads only what the source stated. ``e2e_encrypted is None`` means the
     source did not state a value, which is a different finding from "false".
+
+    ``reading_observed_at`` is the time of the observation that actually read
+    this device's configurations. The encryption value can be older than the
+    latest observation -- a device that has since left the inventory keeps the
+    reading taken while it was still inspected -- so the explanation must not
+    stamp that reading with the latest observation's time.
     """
+    reported_at = reading_observed_at or obs.observed_at
     base = dict(
         subject_type="device",
         subject_id=device.device_id,
@@ -293,6 +304,24 @@ def rule_content_state(obs: Observation, device: DeviceRecord) -> Assessment:
         )
 
     if not device.encryption_stated:
+        asked = obs.inspected_device_id == device.device_id and obs.configurations is not None
+        if not asked:
+            # One observation inspects one device. For every other device WITNESS
+            # never asked, so it must not describe a response that does not
+            # exist. "Not asked" is a different finding from "asked and absent".
+            return Assessment(
+                status=Status.CONTENT_UNAVAILABLE,
+                rule_id="rule:content_state_unknown",
+                explanation=(
+                    f"WITNESS did not request configurations for "
+                    f"{device.device_label} at {iso(obs.observed_at)}. This observation "
+                    "inspects one device, so content readability for this device is "
+                    "unknown. WITNESS has not established that content is readable, nor "
+                    "that it is unreadable."
+                ),
+                detail={"configurations_attempted": False},
+                **base,
+            )
         return Assessment(
             status=Status.CONTENT_UNAVAILABLE,
             rule_id="rule:content_state_unknown",
@@ -312,7 +341,7 @@ def rule_content_state(obs: Observation, device: DeviceRecord) -> Assessment:
             rule_id="rule:content_encrypted",
             explanation=(
                 f"{device.device_label} reported e2e_encryption.enabled = true at "
-                f"{iso(obs.observed_at)}. The source has told us that content from this "
+                f"{iso(reported_at)}. The source has told us that content from this "
                 "device is not readable by this integration. This is a confirmed "
                 "limitation, not a fault: WITNESS can report the device's presence but "
                 "can never report its content."
@@ -326,7 +355,7 @@ def rule_content_state(obs: Observation, device: DeviceRecord) -> Assessment:
         rule_id="rule:content_not_encrypted",
         explanation=(
             f"{device.device_label} reported e2e_encryption.enabled = false at "
-            f"{iso(obs.observed_at)}. Content from this device is expected to be readable "
+            f"{iso(reported_at)}. Content from this device is expected to be readable "
             "by this integration. WITNESS has not necessarily retrieved any content; this "
             "states only that encryption is not the obstacle."
         ),

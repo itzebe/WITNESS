@@ -18,7 +18,7 @@ them as identical. Almost every design decision traces back to that.
 
 ```bash
 pip install -r requirements.txt
-python -m pytest tests/ -q                  # 281 tests, ~4s
+python -m pytest tests/ -q                  # 283 tests, ~4s
 python -m uvicorn witness.api:app --port 8000
 python scripts/demo_tamper.py               # ledger tamper demo
 node scripts/render_check.js <overview.json> <spec.json> [devices.json]
@@ -154,6 +154,40 @@ where the payload shape is still visible. `_extract_data_list`,
 `normalise_device_list` and `normalise_event_list` are the three boundary
 functions; all three return `(parsed, problem)` and all three refuse rather
 than guess. Do not add a fourth that returns a bare list.
+
+### The second class: text that contradicts itself
+
+A separate class, found by reading the rendered UI rather than the code. An
+explanation can be built from two true statements that do not agree with each
+other. The one caught so far: the classification limitation printed the field
+list (which included `classification`, because the source returned the key with
+a null value) and then said the records "do not carry a classification field".
+Both halves came from real data; the sentence was false.
+
+The fix is to choose a claim that holds in every case the branch can fire --
+"carries a populated classification value" is true whether the key is absent or
+present-and-null. When a message is assembled from more than one derived value,
+read the rendered sentence, not just the inputs.
+
+### The third class: describing a request that was never made
+
+An explanation can name an interaction that did not happen. One observation
+requests history and configurations for *one* device -- the first in inventory
+-- but the content rule is evaluated for every device ever seen. A device that
+was never queried therefore produced an explanation beginning "The
+configurations response for Driveway ... did not include an encryption field",
+asserting a response that does not exist.
+
+The honest finding for that device is not "asked and absent" but "not asked",
+and those are different. `Observation.inspected_device_id` records which device
+the requests were actually made against; `rule_content_state` compares it to
+the device under assessment before it describes a response. "Not asked" and
+"asked and the field was absent" both map to CONTENT_UNAVAILABLE, so the status
+alone never revealed the difference -- the wording did, and only to a reader
+checking it against what was fetched.
+
+When an explanation names a request, an endpoint, or a response, verify that
+request was made for that subject in that observation.
 
 ## Submission artifacts
 

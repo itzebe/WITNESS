@@ -97,12 +97,14 @@ async def collect_observation(
     history: FetchResult | None = None
     configurations: FetchResult | None = None
     events: list[EventRecord] = []
+    inspected_device_id: str | None = None
 
     if devices:
         # WITNESS inspects the first device's history and configurations. This
         # keeps the observation cheap and honest: the UI states the scope
         # explicitly rather than implying every device was inspected.
         primary = devices[0]
+        inspected_device_id = primary.device_id
         history = await _guard(
             adapter.fetch_history(primary.device_id, history_limit),
             f"{adapter.source_id}:/v1/history/devices/{primary.device_id}/events",
@@ -159,6 +161,7 @@ async def collect_observation(
         configurations=configurations,
         devices=devices,
         events=tuple(events),
+        inspected_device_id=inspected_device_id,
     )
 
 

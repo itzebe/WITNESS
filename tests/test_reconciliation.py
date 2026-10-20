@@ -10,6 +10,7 @@ from datetime import timedelta
 
 import pytest
 
+from witness.engine.models import iso
 from witness.engine.reconcile import reconcile
 from witness.engine.rules import Policy, deduplicate_events
 from witness.engine.status import Status
@@ -196,6 +197,65 @@ def test_failed_configurations_is_unknown_not_unencrypted():
     )
     recon = reconcile("ring", [obs], now=T0)
     assert recon.devices[0].content.status is Status.CONTENT_UNAVAILABLE
+
+
+def test_uninspected_device_does_not_claim_a_configurations_response():
+    """A device WITNESS never asked about must not describe a response.
+
+    One observation requests configurations for one device. The second device
+    is present in inventory but was never queried, so any explanation that says
+    "the configurations response for <second device> ... did not include an
+    encryption field" asserts a response that does not exist.
+    """
+    obs = make_observation(
+        "o1",
+        devices=[
+            device("d1", "Front Door", encrypted=None, stated=False),
+            device("d2", "Driveway", encrypted=None, stated=False),
+        ],
+    )
+    recon = reconcile("ring", [obs], now=T0)
+    by_id = {v.device_id: v for v in recon.devices}
+
+    assert by_id["d1"].content.status is Status.CONTENT_UNAVAILABLE
+    assert by_id["d1"].content.detail["encryption_field_present"] is False
+
+    driveway = by_id["d2"].content
+    assert driveway.status is Status.CONTENT_UNAVAILABLE
+    assert driveway.detail["configurations_attempted"] is False
+    lowered = driveway.explanation.lower()
+    assert "did not request configurations" in lowered
+    assert "configurations response" not in lowered
+
+
+def test_encryption_reading_keeps_the_time_it_was_taken():
+    """A stale reading must not be stamped with the latest observation's time.
+
+    d1 is inspected in the first observation and reports encryption. In the
+    second observation d1 is no longer returned, so its record -- and the
+    encryption value on it -- survives from the first pass. The explanation
+    must date the reading to the observation that actually took it, or it
+    claims the source reported encryption again just now.
+    """
+    later = T0 + timedelta(minutes=10)
+    first = make_observation(
+        "o1",
+        observed_at=T0,
+        devices=[device("d1", "Alpha", encrypted=True, stated=True)],
+        configurations_ok=True,
+    )
+    second = make_observation(
+        "o2",
+        observed_at=later,
+        devices=[device("d2", "Beta", encrypted=False, stated=True)],
+        configurations_ok=True,
+    )
+    recon = reconcile("ring", [first, second], now=later)
+    alpha = next(v for v in recon.devices if v.device_id == "d1")
+
+    assert alpha.content.status is Status.SOURCE_ENCRYPTED
+    assert iso(T0) in alpha.content.explanation
+    assert iso(later) not in alpha.content.explanation
 
 
 # --------------------------------------------------------------------------

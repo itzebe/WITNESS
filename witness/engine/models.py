@@ -301,6 +301,10 @@ class Observation:
     configurations: FetchResult | None = None
     devices: tuple[DeviceRecord, ...] = ()
     events: tuple[EventRecord, ...] = ()
+    #: The device whose history and configurations this observation actually
+    #: requested. One observation inspects one device, so a content claim about
+    #: any other device must not describe a response that was never fetched.
+    inspected_device_id: str | None = None
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -314,6 +318,7 @@ class Observation:
             "history_ok": self.history.ok if self.history else None,
             "history_failure": self.history.failure.to_dict() if self.history and self.history.failure else None,
             "configurations_ok": self.configurations.ok if self.configurations else None,
+            "inspected_device_id": self.inspected_device_id,
             "device_count": len(self.devices),
             "event_count": len(self.events),
         }

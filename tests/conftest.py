@@ -90,6 +90,10 @@ def make_observation(
         configurations=configurations,
         devices=tuple(devices or []),
         events=tuple(events or []),
+        # Mirror collect_observation: one observation inspects one device, the
+        # first in the inventory. Without this the content rule cannot tell
+        # "asked and no field" from "never asked".
+        inspected_device_id=(devices[0].device_id if devices else None),
     )
 
 

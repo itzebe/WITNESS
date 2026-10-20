@@ -101,6 +101,27 @@ def _all_device_ids(observations: Sequence[Observation]) -> dict[str, DeviceReco
     return found
 
 
+def _encryption_reading_at(
+    observations: Sequence[Observation], device_id: str
+) -> datetime | None:
+    """When the encryption value on the latest record was actually read.
+
+    The record for a device can outlive the observation that read its
+    configurations -- a device that has since left the inventory keeps the
+    reading taken while it was still inspected. Stamping that value with the
+    latest observation's time would claim the source reported it now. Returns
+    the observed_at of the newest observation that both inspected this device
+    and completed a configurations request.
+    """
+    at: datetime | None = None
+    for obs in observations:
+        if obs.inspected_device_id != device_id:
+            continue
+        if obs.configurations is not None and obs.configurations.ok:
+            at = obs.observed_at
+    return at
+
+
 def reconcile(
     source_id: str,
     observations: Sequence[Observation],
@@ -194,7 +215,9 @@ def reconcile(
                 device_id=device_id,
                 device_label=record.device_label,
                 presence=presence,
-                content=rule_content_state(latest, record),
+                content=rule_content_state(
+                    latest, record, _encryption_reading_at(obs_list, device_id)
+                ),
                 staleness=rule_staleness(presence, now, policy),
                 first_seen_at=seen_first.get(device_id),
                 last_seen_at=seen_last.get(device_id),

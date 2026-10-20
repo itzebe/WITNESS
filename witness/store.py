@@ -206,6 +206,7 @@ def _observation_to_json(obs: Observation) -> str:
             "inventory": _fetch_to_json(obs.inventory),
             "history": _fetch_to_json(obs.history),
             "configurations": _fetch_to_json(obs.configurations),
+            "inspected_device_id": obs.inspected_device_id,
             "devices": [
                 {
                     "device_id": d.device_id,
@@ -245,6 +246,7 @@ def _observation_from_json(raw: str) -> Observation:
         inventory=_fetch_from_json(data["inventory"]),
         history=_fetch_from_json(data.get("history")),
         configurations=_fetch_from_json(data.get("configurations")),
+        inspected_device_id=data.get("inspected_device_id"),
         devices=tuple(
             DeviceRecord(
                 device_id=d["device_id"],

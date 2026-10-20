@@ -286,14 +286,16 @@ STATUS_SPEC: dict[Status, StatusSpec] = {
             "content readability is unknown."
         ),
         trigger=(
-            "rule:content_state_unknown -- the configurations request failed or "
-            "did not report an e2e_encryption object."
+            "rule:content_state_unknown -- one of: the configurations request was "
+            "not made for this device in the latest observation; the configurations "
+            "request failed; or the response did not report an e2e_encryption object."
         ),
         required_evidence=("failure_record", "configurations_response"),
         forbidden_conclusions=(
             "That the device is encrypted.",
             "That the device is unencrypted.",
             "That content is retrievable.",
+            "That content is not retrievable.",
         ),
         explanation_template=(
             "WITNESS could not determine whether content from {device_label} is "
@@ -382,7 +384,7 @@ STATUS_SPEC: dict[Status, StatusSpec] = {
         ),
         trigger=(
             "rule:classification_not_exposed -- the history response succeeded "
-            "and its records carry no classification field."
+            "and none of its records carries a populated classification value."
         ),
         required_evidence=("history_response",),
         forbidden_conclusions=(
