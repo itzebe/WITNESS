@@ -189,6 +189,32 @@ checking it against what was fetched.
 When an explanation names a request, an endpoint, or a response, verify that
 request was made for that subject in that observation.
 
+### The fourth class: two clocks in one pass
+
+Timestamps can disagree with each other even when every value is individually
+plausible. `collect_observation` stamped the observation from its own
+wall-clock read while each adapter stamped its own responses from its own
+clock. Nothing crashed and no status changed, but the simulation produced
+events dated in the future relative to the retrieval that was supposed to have
+produced them, and a delay the scenario scripts as 90 minutes was reported as
+59m 59s -- the offset between the two clocks.
+
+One pass has one clock. An observation takes its time from the response it is
+built around, and each record takes its retrieval time from the response that
+carried it. When a rule subtracts two timestamps, check they were read from
+the same source.
+
+### The fifth class: a clock that runs ahead of the reader
+
+A source's clock can be ahead of the wall clock, which makes fresh evidence
+look old, or stale evidence look current. The simulated frames used to advance
+into the future, so the newest frame was dated ahead of "now". After the clock
+was re-anchored to recede from the present, the frame spacing had to shrink:
+at ten minutes per frame the earliest observation landed past the 30-minute
+staleness window, and a single observation made the demo flag its own fresh
+evidence as stale. Check that a scenario's whole span fits inside the
+thresholds it is meant to demonstrate.
+
 ## Submission artifacts
 
 - `docs/FRICTION_LOG.md` — scored deliverable. Honest, specific, includes dead

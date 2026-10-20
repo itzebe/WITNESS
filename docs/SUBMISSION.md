@@ -62,7 +62,7 @@ We are stating this plainly because the difference matters.
 - Credential redaction: no token appears in any error message or API response.
 - The front end renders every view against real payloads (headless harness,
   `scripts/render_check.js`).
-- 283 automated tests pass.
+- 288 automated tests pass.
 
 ### DOCUMENTED — in the published interface, not exercised by us
 
