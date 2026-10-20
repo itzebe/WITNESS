@@ -240,8 +240,8 @@ def rule_inventory_absent(
             f"{device_label} was not present in the inventory response captured at "
             f"{iso(obs.observed_at)}, but it was present as recently as "
             f"{iso(last_seen.observed_at)}. This is {count} consecutive successful "
-            f"observation(s) without the device; {remaining} more are required before "
-            "WITNESS will describe this as a withdrawal. A single absence can be "
+            f"observation(s) without the device. WITNESS requires {remaining} more "
+            f"before it will describe this as a withdrawal. A single absence can be "
             "ordinary API behaviour and is not evidence of removal."
         ),
         observed_at=obs.observed_at,

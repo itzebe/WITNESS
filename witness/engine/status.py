@@ -164,7 +164,7 @@ STATUS_SPEC: dict[Status, StatusSpec] = {
             "{device_label} was not present in the inventory response captured "
             "at {observed_at}, but it was present as recently as {last_seen_at}. "
             "This is {absent_cycles} consecutive successful observation(s) "
-            "without the device; {remaining} more are required before WITNESS "
+            "without the device. WITNESS requires {remaining} more before it "
             "will describe this as a withdrawal. A single absence can be "
             "ordinary API behaviour and is not evidence of removal."
         ),

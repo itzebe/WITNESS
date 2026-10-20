@@ -269,3 +269,27 @@ def test_ui_states_the_ledger_limitation():
     js = APP_JS.read_text()
     assert "tamper-evident" in js
     assert "never as immutable" in js or "not prove the ledger was never rewritten" in js
+
+
+def test_every_capability_level_has_a_legend_entry():
+    """Every level the table can render must be explained in the legend.
+
+    The capability table's whole point is the difference between "WITNESS ran
+    this" (VERIFIED), "it is in Ring's docs" (DOCUMENTED), and "we made it up
+    in a scenario" (SIMULATED). An unexplained badge inverts the honesty story:
+    a judge would read SIMULATED as a stronger claim than it is. Parse the tone
+    map and the legend out of the real source and require them to agree.
+    """
+    js = APP_JS.read_text()
+    fn = js.split("function renderCapabilityTable(source)", 1)[1]
+    tone_map = fn.split("const tone = {", 1)[1].split("}[level]", 1)[0]
+    toned = set(re.findall(r"([A-Z_]+):", tone_map))
+
+    legend_block = fn.split("const legend = [", 1)[1].split("];", 1)[0]
+    explained = set(re.findall(r"\['([A-Z_]+)'", legend_block))
+
+    assert toned == explained, (
+        "the capability table renders a level with no legend entry; "
+        f"unexplained: {sorted(toned - explained)}; "
+        f"legend lists levels the table cannot show: {sorted(explained - toned)}"
+    )

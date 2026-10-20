@@ -3,6 +3,21 @@
 Target length: **2 minutes 45 seconds**, leaving margin. Every claim in this
 script is something the product actually does and can be re-run live.
 
+> **Compliance gate — read before recording.** The Ring track rules say: *"The
+> demo video must show the project working through a simulator or an actual Ring
+> device you have for testing."* The scenario below runs on WITNESS's **own**
+> simulated source (`ring-simulated`), which is generated from a scenario table
+> and does **not** contact Ring. That is not the Ring simulator.
+>
+> To satisfy the rule, record the demo with the **live `ring` source pointed at
+> the Ring Developer Playground**, whose one-click token and synthetic devices
+> are the documented sandbox. Obtain a free Ring developer account, generate a
+> Playground token, and run with `RING_ACCESS_TOKEN` set (see README). If the
+> Playground does not expose a condition you want to show (for example the
+> encryption transition), show the live source for what it does establish, and
+> state plainly which frames come from WITNESS's own scenario. Do not present
+> the simulated source as the Ring simulator. See `docs/SUBMISSION.md`.
+
 Setup before recording:
 
 ```bash

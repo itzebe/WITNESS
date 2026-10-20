@@ -18,7 +18,7 @@ them as identical. Almost every design decision traces back to that.
 
 ```bash
 pip install -r requirements.txt
-python -m pytest tests/ -q                  # 298 tests, ~4s
+python -m pytest tests/ -q                  # 304 tests, ~4s
 python -m uvicorn witness.api:app --port 8000
 python scripts/demo_tamper.py               # ledger tamper demo
 node scripts/render_check.js <overview.json> <spec.json> [devices.json|-] [verdicts.json]
@@ -265,6 +265,30 @@ while reporting zero unresolved items.
 When a branch decides both a tone and a sentence, derive both from the same
 condition -- and when a summary is assembled from more than one count, check the
 rendered sentence, not just the inputs.
+
+### The eighth class: a document that contradicts the platform it describes
+
+The docs are shown to judges, so a stale claim there is read as our
+understanding of the platform. The Phase 1 audit found three, all in the
+submission artifacts rather than the code:
+
+- `docs/SUBMISSION.md` named the track "**Bee / Ring**". WITNESS has no Bee
+  hardware or data, and the rules say for Bee that "mentioning Bee without
+  demonstrating a live data interaction does not count". A claimed track we
+  cannot enter is a false claim on the form itself.
+- `docs/FRICTION_LOG.md` said we "cannot demonstrate that a Ring MCP server
+  exists". Ring documents one at
+  `https://knowledge.appstore-mcp.ring.amazon.dev/mcp`; we had probed the API
+  host and never read the page naming it. The correction is in the log, and the
+  irony is the point: we turned an absent result into a conclusion, which is
+  the exact failure the product exists to prevent.
+- The same log said the rate limits were "not documented in enough detail to
+  rely on". Ring publishes 100 TPS per partner and a full webhook retry
+  schedule.
+
+Before submission, re-read every artifact against the current official
+documentation and the current competition rules, not against our memory of
+them. `tests/test_docs_honesty.py` pins each correction.
 
 ## Submission artifacts
 

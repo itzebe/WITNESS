@@ -51,12 +51,12 @@ arrival, because the Playground does not let you manufacture those conditions.
 
 ---
 
-## 2. An MCP route for Ring is plausible but we could not confirm one
+## 2. A Ring MCP server exists and is documented; we probed for it the wrong way
 
 **What happened.** MCP looked like an attractive integration route, because it
 would let an agent reason over Ring data directly without us writing a bespoke
 client. We went looking for a Ring MCP endpoint and probed a set of conventional
-paths on the same host:
+paths on the *API* host (`api.amazonvision.com`):
 
 | Request | Result |
 |---|---|
@@ -65,23 +65,36 @@ paths on the same host:
 | `GET /api/mcp`, `/sse`, `/message` | **404** |
 | `POST /mcp` (JSON body) | **404** |
 
-Every one returned 404. We also saw a **405 (Method Not Allowed)** on one probe
-earlier in the build, which would have indicated a live route expecting a
-different verb — but **we were unable to reproduce that result** when we went
-back to confirm it, and we cannot now say which path produced it. We are
-recording it as an observation we could not reproduce rather than as a finding.
+Every one returned 404, and we originally recorded this as "we cannot
+demonstrate that a Ring MCP server exists." **That conclusion was wrong, and we
+are correcting it here.** Ring's own documentation describes a Ring Appstore
+Knowledge MCP Server, and the docs give its exact URL — a host we never probed:
 
-**Confidence: UNVERIFIED.** We cannot demonstrate that a Ring MCP server exists
-at any path we tried. A 405 seen once and never reproduced is not evidence, and
-we are not going to present it as one.
+    https://knowledge.appstore-mcp.ring.amazon.dev/mcp
 
-**Impact.** MCP is not part of this build. We do not depend on it, we do not
-claim it, and nothing in the product would change if it were confirmed tomorrow.
-If a team with Amazon Developer credentials wants to pursue it, the right first
-step is to read the authenticated reference rather than to probe paths.
+We re-probed that URL unauthenticated and got `GET /mcp → 405` (method not
+allowed) and `POST /mcp → 200`, which is consistent with a live Streamable HTTP
+MCP endpoint. The earlier 404s were our error: we assumed the MCP server, if it
+existed, would be mounted on the API host, and we never read the page that names
+it.
 
-**Friction rating: low.** Time spent on a dead end, but no effect on the
-product. Included because an honest log records the dead ends too.
+**What the MCP server actually is.** It is a *knowledge* server, not a device
+server: it is "a remote Model Context Protocol server backed by an Amazon
+Bedrock Knowledge Base" that exposes `search_docs` and `get_doc` over Ring's
+documentation. It helps an AI coding assistant answer Ring integration
+questions. It does **not** expose a user's devices or events.
+
+**Impact.** Correcting this changes nothing about the build, and we are
+recording it because our first version of this log overstated a negative.
+WITNESS still does not use MCP, and the MCP server would not have given WITNESS
+device data even if we had found it. The lesson is the one the product is about:
+*an absent result is not evidence of absence.* We probed the wrong host, saw
+404, and wrote down a conclusion the evidence did not support. That is exactly
+the failure mode WITNESS exists to prevent, and we made it ourselves.
+
+**Friction rating: medium.** We misread a documented feature as a dead end. The
+correction costs nothing, but the original entry would have been a false claim in
+front of judges who know the Ring docs better than we do.
 
 ---
 
@@ -152,15 +165,28 @@ point of view this is indistinguishable from a device being removed or the
 integration being unlinked — see friction 4.
 
 We could not test this transition ourselves without a device and an account. It
-is **DOCUMENTED** behaviour, and it is precisely why our simulated scenario
-includes an encryption transition.
+is **DOCUMENTED** behaviour — and we have since confirmed the exact wording in
+Ring's own developer FAQ, which distinguishes two encryption modes:
+
+- **E2EE.** "E2EE devices are not returned by any Ring Partner API, as users
+  can't grant partner apps access to E2EE devices." And, on a device that was
+  already connected: "An E2EE device drops out of your app's view entirely."
+- **TAKE** (Throw Away the Key). "A TAKE device is visible and callable via the
+  Ring Partner API, but video requests return encrypted content."
+
+So there are two distinct encrypted states with different observable behaviour:
+one removes the device from the inventory (E2EE), the other keeps it visible but
+unreadable (TAKE). That is precisely why our simulated scenario includes an
+encryption transition, and why the status taxonomy keeps content readability
+(`SOURCE_ENCRYPTED`, `CONTENT_VISIBLE`, `CONTENT_UNAVAILABLE`) separate from
+presence (`OBSERVED`, `SOURCE_WITHDRAWN`).
 
 **Impact.** It is the reason `SOURCE_ENCRYPTED` and `SOURCE_WITHDRAWN` are
 separate statuses rather than one "gone" state, and the reason the withdrawal
 explanation explicitly lists encryption as a possible cause it cannot rule out.
 
 **Friction rating: medium.** A real constraint we designed around without being
-able to reproduce it.
+able to reproduce it. The behaviour itself is documented, not inferred.
 
 ---
 
@@ -181,20 +207,34 @@ reading a filtered view of someone else's data.
 
 ---
 
-## 7. Rate limits and retry behaviour are not documented in enough detail to rely on
+## 7. Rate limits and retry behaviour are documented; we did not need to guess
 
-**What happened.** We could not confirm the exact rate limits, the retry
-semantics, or the delivery guarantees of the webhook from an authenticated
-source. We did not want to guess, because guessing here would mean either
-hammering an API we do not have credentials for, or writing retry logic against
-an imagined contract.
+**What happened.** Early in the build we were unsure of the exact rate limits and
+retry semantics, and we did not want to invent a backoff policy against an
+imagined contract. We have since read the published numbers.
 
-**What we did instead.** The adapter classifies `429` as `RATE_LIMITED` and does
-not retry. It reports the condition honestly and lets the caller decide. We
-documented the uncertainty rather than inventing a backoff policy.
+**What the documentation actually says.** The API reference states a default
+rate of **100 requests per second (TPS) per partner**, scoped per
+`client_id` across all endpoints, with `X-RateLimit-Limit`,
+`X-RateLimit-Remaining` and `Retry-After` headers, and instructs clients to
+"use exponential backoff starting at 1 second and respect the `Retry-After`
+header." For webhooks, Ring publishes a full retry schedule — 1s, 5s, 30s, 2m,
+10m, 1h, six retries after the initial attempt — with a dead-letter queue and
+72-hour event retention.
 
-**Friction rating: low for the build, but a real risk for production.** Flagged
-here because a team with credentials should measure it rather than assume.
+**What we did instead.** The adapter still classifies `429` as `RATE_LIMITED`
+and does not retry on its own; it reports the condition and lets the caller
+decide. That is a deliberate product choice, not a gap in the docs: a read-only
+evidence tool should surface a rate limit as a `SOURCE_UNAVAILABLE` fact rather
+than silently retry and blur when the observation was actually taken.
+
+**Correction.** Our first version of this entry said the limits were "not
+documented in enough detail to rely on." That was wrong, and we are correcting
+it. The numbers are published; we simply had not read them when we wrote the
+entry.
+
+**Friction rating: low.** A documentation-reading miss on our side, corrected
+before submission. The adapter's no-retry behaviour stands on its own merits.
 
 ---
 

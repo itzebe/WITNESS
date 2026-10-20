@@ -375,6 +375,12 @@ main { max-width: var(--measure); margin: 0 auto; padding: var(--gutter); }
 /* ============================= TABLES =================================== */
 
 .table-wrap { overflow-x: auto; border: 1px solid var(--line); border-radius: var(--radius); }
+.table-legend {
+  color: var(--ink-muted); font-size: var(--step--1); line-height: 1.7;
+  margin: 0 0 0.6rem; max-width: 84ch;
+}
+.legend-item { white-space: nowrap; }
+.legend-meaning { color: var(--ink-faint); }
 table { width: 100%; border-collapse: collapse; font-size: var(--step--1); }
 th, td { text-align: left; padding: 0.5rem 0.7rem; border-bottom: 1px solid var(--line); }
 th {

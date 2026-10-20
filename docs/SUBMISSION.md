@@ -6,7 +6,7 @@ Everything a reviewer needs to verify this submission, in one place.
 
 ```bash
 pip install -r requirements.txt
-python -m pytest tests/ -q          # expect 298 passed
+python -m pytest tests/ -q          # expect 304 passed
 python -m uvicorn witness.api:app --port 8000
 ```
 
@@ -62,7 +62,7 @@ We are stating this plainly because the difference matters.
 - Credential redaction: no token appears in any error message or API response.
 - The front end renders every view against real payloads (headless harness,
   `scripts/render_check.js`).
-- 298 automated tests pass.
+- 304 automated tests pass.
 
 ### DOCUMENTED — in the published interface, not exercised by us
 
@@ -83,10 +83,20 @@ We are stating this plainly because the difference matters.
   available in this environment. We probed the host unauthenticated to confirm
   it is live and auth-guarded (`/v1/devices` → 401, nonexistent path → 404), but
   that is not a real call and we do not present it as one.
-- Exact rate limits and retry semantics.
-- Whether a Ring MCP server exists. We probed conventional paths; all returned
-  404. One 405 was seen once and not reproduced, so we do not treat it as
-  evidence.
+
+Two entries that were previously listed here are now **DOCUMENTED**, not
+unverified, because we found them in Ring's own reference after the first draft
+of this file:
+
+- **Rate limits and retry behaviour.** Published: 100 requests/second per
+  partner `client_id`, with `Retry-After` and `X-RateLimit-*` headers, and a
+  documented webhook retry schedule (1s, 5s, 30s, 2m, 10m, 1h; six retries;
+  dead-letter queue; 72-hour retention).
+- **The Ring MCP server.** It exists and is documented — a *knowledge* server at
+  `https://knowledge.appstore-mcp.ring.amazon.dev/mcp`, exposing `search_docs`
+  and `get_doc` over Ring's docs. It is not a device-data server. Our earlier
+  claim that we "could not confirm a Ring MCP server exists" was wrong; see
+  `docs/FRICTION_LOG.md` entry 2 for the correction.
 
 ## The live path
 
@@ -103,9 +113,54 @@ exposes only a 12-character fingerprint, never the token.
 
 ## Track
 
-**Bee / Ring.** The submission is a read-only Ring Partner API integration. It
-makes no device actions, requests no write scope, and issues no emergency or
-safety claims.
+**Ring** (primary track). The submission is a read-only Ring Partner API
+integration. It makes no device actions, requests no write scope, and issues no
+emergency or safety claims.
+
+Ring is the only track WITNESS can enter. The other three are not available to
+this build:
+
+| Track | Why not |
+|---|---|
+| Fire TV | Needs an app running on Fire OS/Vega OS, on device or in the Fire TV/Vega simulator. WITNESS has no Fire TV surface. |
+| Alexa+ | Needs a working Agent Skill or a self-hosted MCP server at spec 2025-11-25+. WITNESS exposes a plain HTTP read model, not an MCP server. |
+| Bee | Rules require live data from a Bee device or an Apple Watch running Bee software, and "mentioning Bee without demonstrating a live data interaction does not count." We have no Bee hardware or data. |
+| Open Source (mini) | Requires a contribution made to a public repository during the submission window, with a contribution URL. Our own repo being open source is not itself a contribution. |
+| AWS Builder (mini) | Requires a documented AWS service integration. WITNESS is deliberately model-free and calls no AWS service. |
+
+Ring is also the correct choice on the merits: the rules name **caretaking**,
+**accessibility**, and **IoT home automation** as priority categories, and the
+judging guidance names "non-security use case (accessibility aid, care-taking
+monitoring)" as the *creative* end of the Ring spectrum, against "motion
+detection alert, basic doorbell live view" as the obvious end. WITNESS is aimed
+squarely at the creative end.
+
+### Ring track requirement: simulator or real device
+
+The rules are explicit: for Ring, "The demo video must show the project working
+through a simulator or an actual Ring device you have for testing."
+
+This is the submission's single largest compliance risk, and it is stated here
+rather than buried:
+
+- WITNESS ships two sources. `ring` is a real HTTP client for the Ring Partner
+  API. `ring-simulated` is a scenario table WITNESS generates itself; it does
+  **not** contact Ring and does **not** replay the Ring Playground.
+- Ring does provide an official simulator path. The Playground and sandbox are
+  documented ("Sandbox Environment — A testing environment with synthetic Ring
+  devices and events"), and a free Ring developer account reaches them.
+- **We have not run the live path against the Playground or sandbox in this
+  environment, because we hold no Amazon Developer credentials here.** So the
+  video as currently scripted demonstrates WITNESS's own scenario, which is not
+  the same thing as the Ring simulator.
+
+**This must be resolved before submission.** The honest options are, in order of
+preference: (1) obtain a free Ring developer account, point the `ring` adapter
+at the Playground, and record the video against the real simulator; or (2) if
+that is impossible, label the demo plainly as WITNESS's own scenario and state
+in the submission text that the Ring simulator path was not exercised. Option 2
+is a materially weaker submission. See `docs/FRICTION_LOG.md` for the probing we
+did without credentials.
 
 ## Honesty boundaries enforced by tests
 
@@ -141,7 +196,7 @@ witness/engine/      Deterministic core: statuses, rules, reconciliation, ledger
 witness/adapters/    Ring (live, read-only) and simulated sources
 witness/api.py       HTTP read model
 web/                 Front end, no build step
-tests/               298 tests
+tests/               304 tests
 scripts/             render_check.js, demo_tamper.py
 docs/                FRICTION_LOG.md, DEMO_SCRIPT.md, SUBMISSION.md
 ```
