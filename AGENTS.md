@@ -21,7 +21,7 @@ pip install -r requirements.txt
 python -m pytest tests/ -q                  # 298 tests, ~4s
 python -m uvicorn witness.api:app --port 8000
 python scripts/demo_tamper.py               # ledger tamper demo
-node scripts/render_check.js <overview.json> <spec.json> [devices.json]
+node scripts/render_check.js <overview.json> <spec.json> [devices.json|-] [verdicts.json]
 node --check web/app.js                     # always run after editing app.js
 ```
 
