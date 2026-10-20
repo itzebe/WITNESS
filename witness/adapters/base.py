@@ -194,15 +194,23 @@ def _read_encryption(config_data) -> tuple[bool, bool | None]:
 
     Ring reports this as ``e2e_encryption: {enabled: bool}``. WITNESS looks for
     that shape but does not invent a value when the field is absent.
+
+    ``enabled`` must be a real boolean. Any other value is a shape WITNESS
+    cannot read, and coercing it would state an encryption state the source
+    never stated: ``bool("false")`` is ``True`` (reported as "encrypted") and
+    ``bool(None)`` is ``False`` (reported as "not encrypted"). Return
+    ``(False, None)`` -- "not stated" -- instead of guessing in either
+    direction.
     """
     if not isinstance(config_data, dict):
         return False, None
     node = config_data.get("e2e_encryption")
     if not isinstance(node, dict):
         return False, None
-    if "enabled" not in node:
+    enabled = node.get("enabled")
+    if not isinstance(enabled, bool):
         return False, None
-    return True, bool(node.get("enabled"))
+    return True, enabled
 
 
 def _normalise_device(raw) -> DeviceRecord | None:
@@ -224,14 +232,23 @@ def _normalise_device(raw) -> DeviceRecord | None:
         device_id = str(raw["device_id"] or "").strip()
         if not device_id:
             return None
+        encrypted = raw.get("e2e_encrypted")
+        if not isinstance(encrypted, bool):
+            # A stated state must be a real boolean. Keeping a non-boolean here
+            # would let rule_content_state print "= false" and assert an
+            # unencrypted device from a value the source never stated.
+            encrypted = None
+            stated = False
+        else:
+            stated = bool(raw.get("encryption_stated", False))
         return DeviceRecord(
             device_id=device_id,
             device_label=str(raw.get("device_label") or device_id),
             device_kind=raw.get("device_kind"),
             online=raw.get("online"),
             reported_at=parse_iso(raw.get("reported_at")),
-            e2e_encrypted=raw.get("e2e_encrypted"),
-            encryption_stated=bool(raw.get("encryption_stated", False)),
+            e2e_encrypted=encrypted,
+            encryption_stated=stated,
             raw_field_names=tuple(sorted(raw.keys())),
         )
 

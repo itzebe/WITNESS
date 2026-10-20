@@ -199,6 +199,47 @@ def test_failed_configurations_is_unknown_not_unencrypted():
     assert recon.devices[0].content.status is Status.CONTENT_UNAVAILABLE
 
 
+def test_unreadable_encryption_value_does_not_deny_the_field():
+    """A field that was present but unreadable must not be reported as absent.
+
+    ``_read_encryption`` refuses a non-boolean ``enabled`` and returns
+    ``(False, None)``. The explanation must say the field was there and its
+    value could not be read -- not that the response "did not include an
+    encryption field", which would deny a field the source actually sent.
+    """
+    from witness.engine.models import FetchResult, Observation
+
+    obs = make_observation("o1", devices=[device("d1", "Front Door", encrypted=None, stated=False)])
+    obs = Observation(
+        observation_id=obs.observation_id,
+        source_id=obs.source_id,
+        source_kind=obs.source_kind,
+        observed_at=obs.observed_at,
+        inventory=obs.inventory,
+        history=obs.history,
+        configurations=FetchResult.success(
+            "https://api.amazonvision.com/v1/devices/d1/configurations",
+            {"e2e_encryption": {"enabled": "yes"}},
+            observed_at=obs.observed_at,
+            request_id="req-3",
+            http_status=200,
+        ),
+        devices=obs.devices,
+        events=obs.events,
+        inspected_device_id=obs.inspected_device_id,
+    )
+
+    recon = reconcile("ring", [obs], now=T0)
+    content = recon.devices[0].content
+
+    assert content.status is Status.CONTENT_UNAVAILABLE
+    assert content.detail["encryption_field_present"] is True
+    assert content.detail["encryption_value_readable"] is False
+    lowered = content.explanation.lower()
+    assert "did not include an encryption field" not in lowered
+    assert "included an encryption field" in lowered
+
+
 def test_uninspected_device_does_not_claim_a_configurations_response():
     """A device WITNESS never asked about must not describe a response.
 

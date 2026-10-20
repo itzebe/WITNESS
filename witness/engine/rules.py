@@ -322,16 +322,34 @@ def rule_content_state(
                 detail={"configurations_attempted": False},
                 **base,
             )
+        field_present = "e2e_encryption" in (obs.configurations.data or {})
+        if not field_present:
+            return Assessment(
+                status=Status.CONTENT_UNAVAILABLE,
+                rule_id="rule:content_state_unknown",
+                explanation=(
+                    f"The configurations response for {device.device_label} at "
+                    f"{iso(obs.observed_at)} did not include an encryption field. WITNESS "
+                    "therefore cannot state whether content is readable. The absence of the "
+                    "field is not evidence that the device is unencrypted."
+                ),
+                detail={"encryption_field_present": False},
+                **base,
+            )
+        # The field was present but its value is not a shape WITNESS can read.
+        # Saying "did not include an encryption field" here would deny a field
+        # that the response actually carried.
         return Assessment(
             status=Status.CONTENT_UNAVAILABLE,
             rule_id="rule:content_state_unknown",
             explanation=(
                 f"The configurations response for {device.device_label} at "
-                f"{iso(obs.observed_at)} did not include an encryption field. WITNESS "
-                "therefore cannot state whether content is readable. The absence of the "
-                "field is not evidence that the device is unencrypted."
+                f"{iso(obs.observed_at)} included an encryption field, but WITNESS could "
+                "not read a boolean value from it. WITNESS therefore cannot state whether "
+                "content is readable. An unreadable value is not evidence in either "
+                "direction."
             ),
-            detail={"encryption_field_present": False},
+            detail={"encryption_field_present": True, "encryption_value_readable": False},
             **base,
         )
 

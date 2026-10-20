@@ -18,7 +18,7 @@ them as identical. Almost every design decision traces back to that.
 
 ```bash
 pip install -r requirements.txt
-python -m pytest tests/ -q                  # 288 tests, ~4s
+python -m pytest tests/ -q                  # 293 tests, ~4s
 python -m uvicorn witness.api:app --port 8000
 python scripts/demo_tamper.py               # ledger tamper demo
 node scripts/render_check.js <overview.json> <spec.json> [devices.json]
@@ -214,6 +214,36 @@ at ten minutes per frame the earliest observation landed past the 30-minute
 staleness window, and a single observation made the demo flag its own fresh
 evidence as stale. Check that a scenario's whole span fits inside the
 thresholds it is meant to demonstrate.
+
+### The sixth class: a value WITNESS manufactured at the boundary
+
+An explanation can be built from a field that was present but that WITNESS
+could not actually read, and the coercion happens silently at a boundary far
+from the sentence that states it. Two instances were found in the same sweep:
+
+- `_read_encryption` returned `bool(node.get("enabled"))`. A stringified
+  `"false"` became `True` ("this device is end-to-end encrypted") and an
+  explicit `null` became `False` ("this device is not encrypted"). Both are
+  claims the source never made. Only a real boolean states a state; anything
+  else is "not stated".
+- `RingAdapter.fetch_configurations` returned the raw JSON:API envelope while
+  `_read_encryption` expected the unwrapped attributes object. On the live
+  path the encryption field was therefore never found, and the device was
+  reported as CONTENT_UNAVAILABLE with an explanation saying the response "did
+  not include an encryption field" -- about a response that did. The envelope
+  is now unwrapped in the adapter, where the payload shape is still visible.
+
+The same rule applies to the normalised-device branch: "stated" and "is a
+boolean" must agree, or a non-boolean value slips through and the content rule
+prints "reported e2e_encryption.enabled = false" from it.
+
+The wording also had to split. A missing field and a present-but-unreadable
+field are different findings and now produce different sentences, with
+`encryption_field_present` / `encryption_value_readable` in the detail to keep
+them distinguishable in the payload.
+
+When a value is coerced, decoded, or unwrapped at a boundary, test what the
+boundary does with a wrong-typed input -- not only with a well-formed one.
 
 ## Submission artifacts
 

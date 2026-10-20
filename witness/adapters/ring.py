@@ -259,8 +259,60 @@ class RingAdapter(SourceAdapter):
         )
 
     async def fetch_configurations(self, device_id: str) -> FetchResult:
-        """GET /v1/devices/{id}/configurations -> configurations resource."""
-        return await self._get(f"/v1/devices/{device_id}/configurations")
+        """GET /v1/devices/{id}/configurations -> the resource's attributes.
+
+        The response is a JSON:API single-resource envelope. Callers read
+        fields such as ``e2e_encryption`` off the attributes object, so the
+        envelope is unwrapped here, at the boundary where the payload shape is
+        still visible. Handing the raw envelope through would mean the
+        encryption field is never found -- and WITNESS would then report that
+        the response "did not include an encryption field" about a response
+        that did.
+        """
+        result = await self._get(f"/v1/devices/{device_id}/configurations")
+        if not result.ok:
+            return result
+        rows, problem = _extract_data_list(result.data)
+        if problem is not None:
+            return FetchResult.failed(
+                result.endpoint,
+                Failure(
+                    kind=FailureKind.MALFORMED_RESPONSE,
+                    message=problem,
+                    http_status=result.http_status,
+                    endpoint=result.endpoint,
+                ),
+                observed_at=result.observed_at,
+            )
+        if not rows:
+            # The envelope was readable but carried no resource: the source
+            # stated nothing about this device's configuration.
+            attributes: dict[str, Any] = {}
+        else:
+            resource = rows[0]
+            if not isinstance(resource, dict):
+                return FetchResult.failed(
+                    result.endpoint,
+                    Failure(
+                        kind=FailureKind.MALFORMED_RESPONSE,
+                        message=(
+                            f"configurations resource was {type(resource).__name__}, "
+                            "expected an object"
+                        ),
+                        http_status=result.http_status,
+                        endpoint=result.endpoint,
+                    ),
+                    observed_at=result.observed_at,
+                )
+            raw_attributes = resource.get("attributes")
+            attributes = raw_attributes if isinstance(raw_attributes, dict) else {}
+        return FetchResult.success(
+            result.endpoint,
+            attributes,
+            observed_at=result.observed_at,
+            request_id=result.request_id,
+            http_status=result.http_status,
+        )
 
     async def fetch_status(self, device_id: str) -> FetchResult:
         return await self._get(f"/v1/devices/{device_id}/status")

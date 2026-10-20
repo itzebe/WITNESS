@@ -35,6 +35,7 @@ from witness.adapters.ring import HISTORY_EVENT_TYPES_PARAM, RingAdapter, _extra
 from witness.adapters.simulated import DEFAULT_SCENARIO, SimulatedAdapter
 from witness.engine.models import FailureKind, utcnow
 from witness.engine.reconcile import reconcile
+from witness.engine.status import Status
 
 
 def _mock(token: str = "test-token", handler=None) -> RingAdapter:
@@ -377,6 +378,47 @@ def test_read_encryption_refuses_a_payload_that_is_not_an_object():
     assert _read_encryption({"e2e_encryption": "yes"}) == (False, None)
 
 
+def test_read_encryption_refuses_a_non_boolean_enabled_value():
+    """Only a real boolean states an encryption state.
+
+    ``enabled`` is documented as a boolean. Any other value is a shape WITNESS
+    cannot read, and coercing it invents a claim the source did not make:
+    ``bool("false")`` is ``True``, so a stringified false would be reported as
+    "this device is end-to-end encrypted", and ``bool(None)`` is ``False``, so
+    an explicit null would be reported as "this device is not encrypted".
+    Both are fabrications. The honest reading is "the source did not state it".
+    """
+    assert _read_encryption({"e2e_encryption": {"enabled": "false"}}) == (False, None)
+    assert _read_encryption({"e2e_encryption": {"enabled": "true"}}) == (False, None)
+    assert _read_encryption({"e2e_encryption": {"enabled": None}}) == (False, None)
+    assert _read_encryption({"e2e_encryption": {"enabled": 1}}) == (False, None)
+    assert _read_encryption({"e2e_encryption": {"enabled": 0}}) == (False, None)
+
+
+def test_normalise_device_refuses_a_non_boolean_encryption_state():
+    """A stated encryption state must be a real boolean.
+
+    The normalised branch is fed WITNESS's own device dicts. If a caller states
+    an encryption value that is not a boolean, keeping it would let
+    ``rule_content_state`` fall through to CONTENT_VISIBLE and print "reported
+    e2e_encryption.enabled = false" -- asserting an unencrypted device from a
+    value the source never stated. "Stated" and "is a boolean" must agree.
+    """
+    for bad in ("yes", "false", 1, 0, None, "true"):
+        device = _normalise_device(
+            {"device_id": "d1", "device_label": "Door", "encryption_stated": True, "e2e_encrypted": bad}
+        )
+        assert device is not None
+        assert device.encryption_stated is False, bad
+        assert device.e2e_encrypted is None, bad
+
+    stated = _normalise_device(
+        {"device_id": "d1", "device_label": "Door", "encryption_stated": True, "e2e_encrypted": True}
+    )
+    assert stated.encryption_stated is True
+    assert stated.e2e_encrypted is True
+
+
 # --------------------------------------------------------------------------
 # Observation collection
 # --------------------------------------------------------------------------
@@ -391,6 +433,55 @@ async def test_collect_observation_records_success_and_scope():
     assert len(obs.devices) == 2
     assert obs.history is not None and obs.history.ok
     assert obs.configurations is not None and obs.configurations.ok
+
+
+async def test_live_configurations_response_states_encryption():
+    """The live Ring path must read encryption from the JSON:API envelope.
+
+    Ring returns configurations as ``{"data": {"attributes": {...}}}``. The
+    reader expects the unwrapped attributes object, so if the adapter hands it
+    the raw envelope the encryption field is never seen. The device is then
+    reported as CONTENT_UNAVAILABLE with an explanation claiming the response
+    "did not include an encryption field" -- which is false: it did.
+    """
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path == "/v1/devices":
+            return httpx.Response(200, json=DEVICES_BODY)
+        if request.url.path.startswith("/v1/history/devices/"):
+            return httpx.Response(200, json=HISTORY_BODY)
+        if request.url.path.endswith("/configurations"):
+            return httpx.Response(200, json=CONFIG_ENCRYPTED)
+        return httpx.Response(404)
+
+    obs = await collect_observation(_mock(handler=handler))
+    primary = obs.devices[0]
+    assert primary.encryption_stated is True
+    assert primary.e2e_encrypted is True
+
+    recon = reconcile("ring", [obs])
+    view = next(v for v in recon.devices if v.device_id == primary.device_id)
+    assert view.content.status is Status.SOURCE_ENCRYPTED
+
+
+async def test_live_configurations_plain_response_states_not_encrypted():
+    """The converse: an explicit false must be read as a stated false."""
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path == "/v1/devices":
+            return httpx.Response(200, json=DEVICES_BODY)
+        if request.url.path.startswith("/v1/history/devices/"):
+            return httpx.Response(200, json=HISTORY_BODY)
+        if request.url.path.endswith("/configurations"):
+            return httpx.Response(200, json=CONFIG_PLAIN)
+        return httpx.Response(404)
+
+    obs = await collect_observation(_mock(handler=handler))
+    primary = obs.devices[0]
+    assert primary.encryption_stated is True
+    assert primary.e2e_encrypted is False
+
+    recon = reconcile("ring", [obs])
+    view = next(v for v in recon.devices if v.device_id == primary.device_id)
+    assert view.content.status is Status.CONTENT_VISIBLE
 
 
 async def test_collect_observation_contains_adapter_exceptions():
