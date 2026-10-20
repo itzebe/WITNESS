@@ -194,3 +194,79 @@ def test_overview_before_any_observation_is_empty_not_fabricated(client):
     recon = body["reconciliations"]["ring-simulated"]
     assert recon["devices"] == []
     assert recon["latest_observation_at"] is None
+
+
+# --------------------------------------------------------------------------
+# Error paths a visitor can actually reach
+# --------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize("path", ["/api/devices/nope", "/api/timeline/nope"])
+def test_device_and_timeline_endpoints_404_for_an_unknown_source(client, path):
+    """A mistyped or stale source id must say so, not return an empty list.
+
+    An empty device list is a meaningful answer in this product ("the source
+    returned nothing"). Returning one for an unknown source would let a caller
+    mistake "no such source" for "source reports no devices".
+    """
+    response = client.get(path)
+    assert response.status_code == 404
+    assert "nope" in response.json()["detail"]
+
+
+def test_unknown_source_error_is_not_an_empty_result():
+    """Contrast the two cases directly, using the same client."""
+    from fastapi.testclient import TestClient
+
+    from witness.api import create_app
+
+    app = create_app(db_path=":memory:")
+    with TestClient(app) as c:
+        unknown = c.get("/api/devices/nope")
+        assert unknown.status_code == 404
+
+        c.post("/api/observe/ring-simulated")
+        known = c.get("/api/devices/ring-simulated")
+        assert known.status_code == 200
+        assert "devices" in known.json()
+
+
+def test_timeline_limit_is_respected(client):
+    for _ in range(3):
+        client.post("/api/observe/ring-simulated")
+    body = client.get("/api/timeline/ring-simulated?limit=1").json()
+    assert len(body["entries"]) == 1
+
+
+def test_simulated_state_is_reported_before_any_advance(client):
+    body = client.get("/api/simulated/state").json()
+    assert "cursor" in body or "frame" in body or "total_frames" in body
+
+
+def test_simulated_reset_returns_to_the_first_frame(client):
+    client.post("/api/simulated/advance")
+    client.post("/api/simulated/advance")
+    client.post("/api/simulated/reset")
+    state = client.get("/api/simulated/state").json()
+    assert state.get("cursor") == 0
+
+
+def test_root_serves_the_ui(client):
+    response = client.get("/")
+    assert response.status_code == 200
+    assert "text/html" in response.headers["content-type"]
+
+
+def test_ledger_verify_is_valid_before_anything_is_recorded(client):
+    body = client.get("/api/ledger/verify").json()
+    assert body["valid"] is True
+
+
+def test_ledger_export_is_downloadable_json(client):
+    client.post("/api/observe/ring-simulated")
+    response = client.get("/api/ledger/export")
+    assert response.status_code == 200
+    payload = json.loads(response.content)
+    assert payload["records"]
+    assert payload["verification"]["valid"] is True
+

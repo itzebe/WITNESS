@@ -77,7 +77,22 @@ async def collect_observation(
 
     devices: tuple[DeviceRecord, ...] = ()
     if inventory.ok:
-        devices = tuple(_normalise_device(d) for d in (inventory.data or []))
+        devices, problem = normalise_device_list(inventory.data)
+        if problem is not None:
+            # A payload WITNESS cannot fully read is a malformed response, not a
+            # short device list. Treating it as the latter would make unreadable
+            # devices look absent, and a sustained absence becomes an asserted
+            # withdrawal. Fail the request instead of inventing a conclusion.
+            inventory = FetchResult.failed(
+                inventory.endpoint,
+                Failure(
+                    kind=FailureKind.MALFORMED_RESPONSE,
+                    message=problem,
+                    http_status=inventory.http_status,
+                ),
+                observed_at=inventory.observed_at,
+            )
+            devices = ()
 
     history: FetchResult | None = None
     configurations: FetchResult | None = None
@@ -162,20 +177,28 @@ def _read_encryption(config_data) -> tuple[bool, bool | None]:
     return True, bool(node.get("enabled"))
 
 
-def _normalise_device(raw) -> DeviceRecord:
+def _normalise_device(raw) -> DeviceRecord | None:
     """Normalise one device as returned by a source.
 
     Accepts either WITNESS's own normalised dict (used by the simulated source)
     or a Ring JSON:API resource object. Unknown fields are ignored rather than
     guessed at.
+
+    Returns ``None`` when the entry cannot be interpreted as a device. It must
+    never invent one: a payload entry with no usable identity would otherwise
+    become a phantom device that WITNESS reports as OBSERVED, and two such
+    entries would collapse into a single fabricated device.
     """
     if not isinstance(raw, dict):
-        return DeviceRecord(device_id="unknown", device_label="Unnamed device")
+        return None
 
     if "device_id" in raw:  # already normalised
+        device_id = str(raw["device_id"] or "").strip()
+        if not device_id:
+            return None
         return DeviceRecord(
-            device_id=str(raw["device_id"]),
-            device_label=str(raw.get("device_label") or raw["device_id"]),
+            device_id=device_id,
+            device_label=str(raw.get("device_label") or device_id),
             device_kind=raw.get("device_kind"),
             online=raw.get("online"),
             reported_at=parse_iso(raw.get("reported_at")),
@@ -185,7 +208,15 @@ def _normalise_device(raw) -> DeviceRecord:
         )
 
     attributes = raw.get("attributes") or {}
-    device_id = str(raw.get("id") or attributes.get("id") or "unknown")
+    if not isinstance(attributes, dict):
+        attributes = {}
+    raw_id = raw.get("id") or attributes.get("id")
+    if raw_id is None or not str(raw_id).strip():
+        # A device with no identity cannot be tracked between observations.
+        # Giving it a placeholder id would make distinct devices collide and
+        # make a later absence look like a withdrawal.
+        return None
+    device_id = str(raw_id).strip()
     label = str(attributes.get("name") or attributes.get("description") or device_id)
     kind = attributes.get("device_type") or attributes.get("kind")
     online = attributes.get("online") if isinstance(attributes.get("online"), bool) else None
@@ -199,6 +230,40 @@ def _normalise_device(raw) -> DeviceRecord:
         encryption_stated=False,
         raw_field_names=tuple(sorted(attributes.keys())),
     )
+
+
+def normalise_device_list(data: Any) -> tuple[tuple[DeviceRecord, ...], str | None]:
+    """Normalise an inventory payload, refusing to invent devices.
+
+    Returns ``(devices, problem)``. ``problem`` is a human-readable description
+    when part of the payload could not be interpreted as a device.
+
+    A partially-understood inventory is treated as a problem rather than as a
+    short device list. If WITNESS silently dropped the entries it could not
+    read, the missing devices would look absent, and absent devices eventually
+    become an asserted withdrawal. Refusing to interpret the payload is the
+    honest outcome: the response is malformed, not empty.
+    """
+    if data is None:
+        return (), None
+    if not isinstance(data, list):
+        return (), f"expected a list of device resources, got {type(data).__name__}"
+
+    devices: list[DeviceRecord] = []
+    unreadable = 0
+    for entry in data:
+        record = _normalise_device(entry)
+        if record is None:
+            unreadable += 1
+        else:
+            devices.append(record)
+
+    if unreadable:
+        return tuple(devices), (
+            f"{unreadable} of {len(data)} device resource(s) carried no usable identity "
+            "and could not be interpreted"
+        )
+    return tuple(devices), None
 
 
 def _normalise_event(raw, retrieved_at: datetime) -> EventRecord:

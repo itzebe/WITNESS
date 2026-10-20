@@ -376,3 +376,61 @@ def test_every_assessment_carries_evidence_references():
     for view in recon.devices:
         assert view.presence.evidence_refs
         assert view.presence.scope
+
+
+# --------------------------------------------------------------------------
+# Absence longer than the reconciliation window
+# --------------------------------------------------------------------------
+
+
+def test_withdrawal_survives_absence_longer_than_the_window():
+    """A device absent for longer than the window is still a withdrawal.
+
+    Regression: the streak scan was bounded by the window and did not look
+    further back for the last sighting, so a device absent longer than the
+    window reported last_seen=None. Reconcile reads that as "never observed"
+    and downgrades a genuine withdrawal to UNKNOWN, with an explanation that
+    is factually false ("has never successfully observed ..."). A device that
+    went away and stayed away is the clearest possible withdrawal.
+    """
+    window = Policy().reconciliation_window
+    observations = [make_observation("o0", devices=[device("cam", "CAM")])]
+    for i in range(1, window + 5):
+        observations.append(
+            make_observation(f"o{i}", observed_at=T0 + timedelta(minutes=i), devices=[])
+        )
+
+    recon = reconcile("ring", observations, now=T0 + timedelta(minutes=window + 5))
+    presence = _presence(recon, "cam")
+
+    assert presence.status is Status.SOURCE_WITHDRAWN
+    assert presence.rule_id == "rule:inventory_absent_at_or_above_threshold"
+    # The explanation must not claim the device was never seen.
+    assert "never" not in presence.explanation.lower()
+    assert recon.counts["unknown"] == 0
+
+
+def test_long_absence_reports_a_last_seen_time():
+    """The withdrawal must be able to say when the device was last visible."""
+    window = Policy().reconciliation_window
+    observations = [make_observation("o0", devices=[device("cam", "CAM")])]
+    for i in range(1, window + 3):
+        observations.append(
+            make_observation(f"o{i}", observed_at=T0 + timedelta(minutes=i), devices=[])
+        )
+
+    recon = reconcile("ring", observations, now=T0 + timedelta(minutes=window + 3))
+    view = next(v for v in recon.devices if v.device_id == "cam")
+
+    assert view.last_seen_at == T0
+    assert view.presence.detail["last_seen_at"] is not None
+
+
+def test_device_absent_only_within_the_window_is_not_a_withdrawal():
+    """The window fix must not turn a genuinely short absence into a withdrawal."""
+    obs1 = make_observation("o1", devices=[device("d1", "A")])
+    obs2 = make_observation("o2", observed_at=T0 + timedelta(minutes=10), devices=[])
+    recon = reconcile("ring", [obs1, obs2], now=T0 + timedelta(minutes=10))
+
+    assert _presence(recon, "d1").status is Status.NOT_OBSERVED
+

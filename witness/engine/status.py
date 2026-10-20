@@ -425,12 +425,12 @@ STATUS_SPEC: dict[Status, StatusSpec] = {
         status=Status.UNKNOWN,
         label="Unknown",
         definition="WITNESS has no basis on which to assign a status.",
-        trigger="rule:unknown -- no observation exists for the requested scope.",
+        trigger="rule:unknown -- the defensive fallback when no rule produced a conclusion.",
         required_evidence=(),
         forbidden_conclusions=("Any conclusion at all.",),
         explanation_template=(
-            "WITNESS has never successfully observed {device_label}, so it has "
-            "no basis for a status. This is the initial state, not a finding."
+            "WITNESS could not establish a presence status for {device_label} from the "
+            "observations it holds. No rule produced a conclusion for this device."
         ),
         tone="unknown",
     ),

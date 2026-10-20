@@ -141,7 +141,12 @@ def consecutive_successful_absences(
     """
     count = 0
     last_seen: Observation | None = None
-    for obs in reversed(prior[-policy.reconciliation_window :]):
+    window_start = max(0, len(prior) - policy.reconciliation_window)
+
+    # Count consecutive absences within the window. The window bounds the count,
+    # so a long absence is reported as "at least the window size" rather than an
+    # unbounded number.
+    for obs in reversed(prior[window_start:]):
         if obs.source_id != source_id:
             continue
         if not obs.inventory.ok:
@@ -151,6 +156,22 @@ def consecutive_successful_absences(
             last_seen = obs
             break
         count += 1
+
+    if last_seen is None:
+        # The streak ran to the window edge without finding the device, but it
+        # may still have been seen earlier in the history. Search the full
+        # sequence before concluding anything. Without this, a device absent
+        # for longer than the window is reported as never observed -- which is
+        # false, and would downgrade a real withdrawal to UNKNOWN.
+        for obs in reversed(prior[:window_start]):
+            if obs.source_id != source_id:
+                continue
+            if not obs.inventory.ok:
+                continue
+            if any(d.device_id == device_id for d in obs.devices):
+                last_seen = obs
+                break
+
     return count, last_seen
 
 
@@ -494,7 +515,14 @@ def rule_insufficient_evidence(
 
 
 def rule_unknown(device_id: str, device_label: str) -> Assessment:
-    """rule:unknown -- no successful observation has ever covered this device."""
+    """rule:unknown -- the defensive fallback: no rule produced a conclusion.
+
+    This is reached only when every presence rule declines to assess a device
+    that WITNESS nonetheless has a record of. The wording must not claim the
+    device was never observed: a device reaches this function only because it
+    appears in a successful inventory, so asserting "never observed" here would
+    be false. The honest statement is that no rule reached a conclusion.
+    """
     return Assessment(
         status=Status.UNKNOWN,
         subject_type="device",
@@ -502,8 +530,10 @@ def rule_unknown(device_id: str, device_label: str) -> Assessment:
         subject_label=device_label,
         rule_id="rule:unknown",
         explanation=(
-            f"WITNESS has never successfully observed {device_label}, so it has no basis "
-            "for a status. This is the initial state, not a finding."
+            f"WITNESS could not establish a presence status for {device_label} from the "
+            "observations it holds. No rule produced a conclusion for this device, so "
+            "WITNESS reports the question as unresolved rather than choosing the most "
+            "plausible answer."
         ),
         observed_at=utcnow(),
         scope="inventory:none",

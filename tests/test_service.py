@@ -235,3 +235,78 @@ def test_store_ledger_round_trips(tmp_path):
     assert restored.verify().valid is True
     assert restored.head_hash == ledger.head_hash
     store.close()
+
+
+def test_store_all_observations_spans_every_source(tmp_path):
+    """The cross-source view must be ordered oldest-first, like the per-source one."""
+    from datetime import timedelta
+
+    from tests.conftest import T0, device, make_observation
+
+    store = Store(path=str(tmp_path / "all.db"))
+    store.save_observation(
+        make_observation("o1", source_id="ring", observed_at=T0, devices=[device("d1", "A")])
+    )
+    store.save_observation(
+        make_observation(
+            "o2", source_id="other", observed_at=T0 + timedelta(minutes=5), devices=[device("x", "X")]
+        )
+    )
+    store.save_observation(
+        make_observation(
+            "o3", source_id="ring", observed_at=T0 + timedelta(minutes=10), devices=[device("d1", "A")]
+        )
+    )
+
+    everything = store.all_observations()
+    assert [o.observation_id for o in everything] == ["o1", "o2", "o3"]
+    assert store.all_observations(limit=2) and len(store.all_observations(limit=2)) == 2
+    store.close()
+
+
+def test_store_all_observations_is_empty_before_anything_is_saved(tmp_path):
+    store = Store(path=str(tmp_path / "empty.db"))
+    assert store.all_observations() == []
+    assert store.known_source_ids() == []
+    store.close()
+
+
+def test_store_reset_ledger_clears_records_but_keeps_observations(tmp_path):
+    """Resetting the ledger must not silently discard the evidence it attests to."""
+    from witness.engine.ledger import Ledger
+
+    from tests.conftest import make_observation
+
+    store = Store(path=str(tmp_path / "reset.db"))
+    store.save_observation(make_observation("o1"))
+    ledger = Ledger()
+    ledger.append(kind="observation", subject_id="o1", payload={"a": 1})
+    store.save_ledger_records(ledger.records)
+    assert len(store.load_ledger()) == 1
+
+    store.reset_ledger()
+    assert store.load_ledger().records == ()
+    # The observations are untouched: the ledger is the attestation, not the data.
+    assert len(store.observations_for("ring")) == 1
+    store.close()
+
+
+def test_store_ledger_restores_after_a_reopen(tmp_path):
+    """Evidence must survive a process restart, or the ledger proves nothing."""
+    from witness.engine.ledger import Ledger
+
+    path = str(tmp_path / "persist.db")
+    store = Store(path=path)
+    ledger = Ledger()
+    ledger.append(kind="observation", subject_id="s", payload={"a": 1})
+    ledger.append(kind="assessment", subject_id="s", payload={"a": 2})
+    store.save_ledger_records(ledger.records)
+    head = ledger.head_hash
+    store.close()
+
+    reopened = Store(path=path)
+    restored = reopened.load_ledger()
+    assert restored.verify().valid is True
+    assert restored.head_hash == head
+    reopened.close()
+

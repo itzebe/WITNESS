@@ -148,7 +148,7 @@ those are the conditions worth demonstrating."
 
 **On screen:** Method tab — the full status taxonomy.
 
-**Say:** "Nine statuses. Each has a documented trigger and an explicit list of
+**Say:** "Thirteen statuses. Each has a documented trigger and an explicit list of
 what it does not establish. The principle underneath all of them: missing
 evidence is not proof that nothing happened."
 

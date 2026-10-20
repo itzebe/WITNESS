@@ -22,7 +22,13 @@ import json
 import httpx
 import pytest
 
-from witness.adapters.base import _normalise_device, _normalise_event, _read_encryption, collect_observation
+from witness.adapters.base import (
+    _normalise_device,
+    _normalise_event,
+    _read_encryption,
+    collect_observation,
+    normalise_device_list,
+)
 from witness.adapters.ring import HISTORY_EVENT_TYPES_PARAM, RingAdapter
 from witness.adapters.simulated import DEFAULT_SCENARIO, SimulatedAdapter
 from witness.engine.models import FailureKind
@@ -197,10 +203,51 @@ async def test_unexpected_response_shape_does_not_raise():
 
 
 async def test_redirect_is_not_followed():
-    adapter = _mock(handler=lambda r: httpx.Response(302, headers={"Location": "https://evil.example"}))
+    """A redirect must not be followed off-host.
+
+    The security property is not merely that the call fails, but that WITNESS
+    never issues a request to the redirect target. Asserting only on the result
+    would pass even if the adapter leaked a request (and its bearer token) to
+    the attacker's host.
+    """
+    seen: list[str] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen.append(str(request.url))
+        if "evil.example" in str(request.url):
+            return httpx.Response(200, json=DEVICES_BODY)
+        return httpx.Response(302, headers={"Location": "https://evil.example/steal"})
+
+    adapter = _mock(handler=handler)
+    result = await adapter.fetch_inventory()
+
+    assert result.ok is False
+    assert result.failure.kind is FailureKind.NETWORK_ERROR
+    assert not any("evil.example" in url for url in seen), (
+        f"adapter followed a redirect off-host; requests made: {seen}"
+    )
+
+
+async def test_redirect_response_body_is_not_parsed_as_data():
+    """A 3xx body must never be unwrapped into device records."""
+    adapter = _mock(handler=lambda r: httpx.Response(
+        301,
+        headers={"Location": "https://evil.example"},
+        json=DEVICES_BODY,
+    ))
+    result = await adapter.fetch_inventory()
+    assert result.ok is False
+    assert result.data is None
+    assert result.failure is not None
+
+
+@pytest.mark.parametrize("status", [300, 301, 302, 303, 307, 308])
+async def test_every_redirect_class_is_a_failure(status):
+    adapter = _mock(handler=lambda r: httpx.Response(status, headers={"Location": "https://evil.example"}))
     result = await adapter.fetch_inventory()
     assert result.ok is False
     assert result.failure.kind is FailureKind.NETWORK_ERROR
+
 
 
 # --------------------------------------------------------------------------
@@ -392,3 +439,126 @@ async def test_simulated_reset_returns_to_the_first_frame():
     adapter.advance()
     adapter.reset()
     assert adapter.cursor == 0
+
+
+# --------------------------------------------------------------------------
+# Malformed inventories must not fabricate devices
+# --------------------------------------------------------------------------
+
+
+def test_normalise_device_refuses_an_entry_with_no_identity():
+    """An unidentifiable entry must not become a device.
+
+    Regression: a non-dict entry produced a placeholder device with the id
+    "unknown". Several such entries collapsed into one fabricated device, and
+    that device was then reported to the user as OBSERVED -- a device that does
+    not exist, asserted as present.
+    """
+    assert _normalise_device(1) is None
+    assert _normalise_device("device") is None
+    assert _normalise_device(None) is None
+    assert _normalise_device([]) is None
+    assert _normalise_device({"type": "device", "attributes": {"name": "X"}}) is None
+
+
+def test_normalise_device_refuses_an_empty_id():
+    assert _normalise_device({"id": "", "attributes": {"name": "X"}}) is None
+    assert _normalise_device({"id": "   ", "attributes": {"name": "X"}}) is None
+    assert _normalise_device({"device_id": ""}) is None
+
+
+def test_normalise_device_accepts_a_valid_resource():
+    record = _normalise_device({"id": "d1", "attributes": {"name": "Front Door"}})
+    assert record is not None
+    assert record.device_id == "d1"
+    assert record.device_label == "Front Door"
+
+
+def test_normalise_device_tolerates_null_attributes():
+    """A device with a null attributes block still has a usable identity."""
+    record = _normalise_device({"id": "d1", "type": "device", "attributes": None})
+    assert record is not None
+    assert record.device_id == "d1"
+
+
+def test_normalise_device_list_reports_unreadable_entries():
+    devices, problem = normalise_device_list([1, 2, 3])
+    assert devices == ()
+    assert problem is not None
+    assert "3 of 3" in problem
+
+
+def test_normalise_device_list_flags_a_partially_readable_payload():
+    """Dropping the unreadable entries would make them look absent.
+
+    An absent device is one step away from an asserted withdrawal, so a partial
+    read must be reported rather than silently narrowed.
+    """
+    devices, problem = normalise_device_list(
+        [{"id": "d1", "attributes": {"name": "Real"}}, 42]
+    )
+    assert problem is not None
+    assert "1 of 2" in problem
+
+
+def test_normalise_device_list_accepts_a_clean_payload():
+    devices, problem = normalise_device_list(
+        [{"id": "d1", "attributes": {"name": "A"}}, {"id": "d2", "attributes": {"name": "B"}}]
+    )
+    assert problem is None
+    assert [d.device_id for d in devices] == ["d1", "d2"]
+
+
+def test_normalise_device_list_accepts_a_genuinely_empty_payload():
+    devices, problem = normalise_device_list([])
+    assert devices == ()
+    assert problem is None, "an empty list is a real answer, not a problem"
+
+
+def test_normalise_device_list_rejects_a_non_list():
+    devices, problem = normalise_device_list({"data": "nonsense"})
+    assert devices == ()
+    assert problem is not None
+
+
+@pytest.mark.parametrize(
+    "body",
+    [
+        [1, 2, 3],
+        {"data": [{"type": "device", "attributes": {"name": "X"}}]},
+        {"data": [{"id": "d1", "attributes": {"name": "Real"}}, 42]},
+    ],
+)
+async def test_malformed_inventory_fails_rather_than_inventing_devices(body):
+    """The whole pipeline must refuse a payload it cannot read."""
+    adapter = _mock(handler=lambda r: httpx.Response(200, json=body))
+    obs = await collect_observation(adapter)
+
+    assert obs.inventory.ok is False
+    assert obs.inventory.failure.kind is FailureKind.MALFORMED_RESPONSE
+    assert obs.devices == (), "no device may be fabricated from an unreadable payload"
+
+
+async def test_malformed_inventory_is_not_read_as_zero_devices():
+    """A malformed payload must not look like a device list that shrank.
+
+    If it did, the next successful observation would show every device as
+    absent, and repeated absences become an asserted withdrawal.
+    """
+    adapter = _mock(handler=lambda r: httpx.Response(200, json=[1, 2, 3]))
+    obs = await collect_observation(adapter)
+
+    assert obs.inventory.ok is False
+    assert obs.inventory.failure is not None
+    assert "interpreted" in obs.inventory.failure.message
+
+
+async def test_genuinely_empty_inventory_is_still_a_success():
+    """The malformed-payload guard must not break the empty-success case."""
+    adapter = _mock(handler=lambda r: httpx.Response(200, json={"data": []}))
+    obs = await collect_observation(adapter)
+
+    assert obs.inventory.ok is True
+    assert obs.inventory.failure is None
+    assert obs.devices == ()
+
