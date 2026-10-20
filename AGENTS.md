@@ -132,9 +132,46 @@ Do not reorder this.
 - No Amazon Developer credentials in this environment. The live Ring path is
   implemented and mock-tested but has **not** been exercised authenticated.
   Do not claim otherwise in any artifact.
+- The Ring Developer Playground — Ring's official simulator and the hackathon's
+  accepted demo route — is behind an Amazon Developer sign-in
+  (`amazon.com/ap/signin`). Creating an account is prohibited by the task
+  constraints, so the live path stays UNVERIFIED here. If a token is ever
+  supplied, `scripts/live_smoke.py` is the gate: one read-only pass through the
+  real adapter, no token printed.
 - `gh` is not authenticated.
 - `api.amazonvision.com` returns 401 for real routes and 404 for fake ones —
   use this to confirm routing without credentials.
+
+## Verified competition facts (checked against primary sources, Oct 2026)
+
+- **Deadline:** Friday 23 October 2026, 12:00 pm Pacific = **19:00 UTC**.
+- **Ring demo rule (verbatim):** "Any Ring API, SDK, simulator, or device
+  listed in Ring's developer documentation is acceptable. The demo video must
+  show the project working through a simulator or an actual Ring device you
+  have for testing."
+- **Runtime rule (verbatim):** the repo "must demonstrate use of your track's
+  required technology at runtime in your code — imported and actually called
+  (a library import, an app/backend entry point, or a loaded agent/flow/MCP
+  config), not just named in the README." WITNESS satisfies this: `api.py`
+  registers `RingAdapter()` and runs it on `POST /api/observe/ring`.
+- **The official simulator is the Playground** (`developer.amazon.com/ring/
+  console/playground`), per Ring's release notes and the hackathon organizers'
+  own Devpost answer. `ring-simulated` is **not** it and must never be
+  presented as it.
+- **Friction logs are worth up to a 10% judging bonus** and are scored on six
+  named fields: task attempted, steps taken, expected vs actual, severity,
+  workaround used, actionable suggestion. Each `FRICTION_LOG.md` entry carries
+  a **friction record** in exactly that shape.
+- **Product feedback is a required submission field**, not optional: five
+  questions answered in `FRICTION_LOG.md` under "Product feedback".
+- **Judging criteria** are equally weighted: Tech Implementation, Design,
+  Potential Impact, Quality of the Idea. For Ring, "obvious" is "motion
+  detection alert, basic doorbell live view"; "creative" is "non-security use
+  case (accessibility aid, care-taking monitoring, package/delivery
+  management)". WITNESS aims at the creative end.
+- **Repo requirements:** public, open source, with the license visible in the
+  About section (MIT here). No git remote is configured in this environment —
+  pushing is a submission step, not yet done.
 
 ## The defect class to hunt for
 
