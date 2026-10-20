@@ -35,6 +35,20 @@ def test_tamper_demo_detects_every_advertised_class():
         assert reason in out, f"{reason} was not exercised"
 
 
+def test_tamper_demo_docstring_count_matches_the_cases():
+    """The module docstring must state the same count as the cases below.
+
+    It said "four distinct ways" while the script tampers five, and the summary
+    line said "Six" while the script tampers five. Both are claims a judge can
+    check in seconds, so both are pinned here.
+    """
+    source = SCRIPT.read_text()
+    docstring = " ".join(source.split('"""')[1].split())
+    assert "five distinct ways" in docstring, (
+        "the docstring count no longer matches the five tamper cases"
+    )
+
+
 def test_tamper_demo_summary_count_matches_the_cases_shown():
     """The summary word must equal the number of classes actually detected.
 

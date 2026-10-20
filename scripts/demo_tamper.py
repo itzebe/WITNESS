@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Demonstrate ledger tamper detection.
 
-This script builds a chain, verifies it, then tampers with it in four distinct
+This script builds a chain, verifies it, then tampers with it in five distinct
 ways and shows that each one is detected and named. It is the executable form of
 the claim the Integrity tab makes.
 
