@@ -18,7 +18,7 @@ them as identical. Almost every design decision traces back to that.
 
 ```bash
 pip install -r requirements.txt
-python -m pytest tests/ -q                  # 255 tests, ~4s
+python -m pytest tests/ -q                  # 280 tests, ~4s
 python -m uvicorn witness.api:app --port 8000
 python scripts/demo_tamper.py               # ledger tamper demo
 node scripts/render_check.js <overview.json> <spec.json> [devices.json]
@@ -63,6 +63,17 @@ Do not reorder this.
 3. **An empty success is not a failure.** `FetchResult(ok=True, data=[])` is a
    successful response with no devices. Pinned by
    `test_successful_empty_response_is_a_success_not_a_failure`.
+
+3b. **An unreadable payload is not an empty payload.** The converse of #3, and
+   the harder one to hold: an HTTP 200 whose body WITNESS cannot interpret — an
+   error envelope, a `data` member of the wrong type, an entry with no usable
+   identity — must fail the request, never be read as "successfully zero
+   items". Reading it as empty lets sustained unreadable responses assert a
+   device withdrawal that the data does not support. Both the inventory and the
+   history path apply this guard (`_extract_data_list`,
+   `normalise_event_list`). Pinned by
+   `test_error_envelope_does_not_become_an_asserted_withdrawal` and
+   `test_unreadable_history_does_not_fabricate_a_duplicate_finding`.
 
 4. **The ledger is tamper-evident, not immutable.** Never write "immutable",
    "tamper-proof", or "certified" in code, UI, or docs. A full rewrite verifies

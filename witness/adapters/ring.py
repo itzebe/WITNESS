@@ -204,9 +204,25 @@ class RingAdapter(SourceAdapter):
         result = await self._get("/v1/devices")
         if not result.ok:
             return result
+        rows, problem = _extract_data_list(result.data)
+        if problem is not None:
+            # An unreadable envelope is not an empty inventory. Reporting it as
+            # one would let sustained "successful" empty responses assert that a
+            # device was withdrawn -- a conclusion drawn from a response WITNESS
+            # could not read.
+            return FetchResult.failed(
+                result.endpoint,
+                Failure(
+                    kind=FailureKind.MALFORMED_RESPONSE,
+                    message=problem,
+                    http_status=result.http_status,
+                    endpoint=result.endpoint,
+                ),
+                observed_at=result.observed_at,
+            )
         return FetchResult.success(
             result.endpoint,
-            _extract_data_list(result.data),
+            rows,
             observed_at=result.observed_at,
             request_id=result.request_id,
             http_status=result.http_status,
@@ -222,7 +238,18 @@ class RingAdapter(SourceAdapter):
         )
         if not result.ok:
             return result
-        rows = _extract_data_list(result.data)
+        rows, problem = _extract_data_list(result.data)
+        if problem is not None:
+            return FetchResult.failed(
+                result.endpoint,
+                Failure(
+                    kind=FailureKind.MALFORMED_RESPONSE,
+                    message=problem,
+                    http_status=result.http_status,
+                    endpoint=result.endpoint,
+                ),
+                observed_at=result.observed_at,
+            )
         return FetchResult.success(
             result.endpoint,
             rows[:limit],
@@ -245,20 +272,41 @@ class RingAdapter(SourceAdapter):
         return None
 
 
-def _extract_data_list(payload: Any) -> list[Any]:
+def _extract_data_list(payload: Any) -> tuple[list[Any], str | None]:
     """Pull the resource list out of a Ring JSON:API envelope.
 
     Ring follows JSON:API, so a collection arrives as ``{"data": [...]}``. A
-    single resource arrives as ``{"data": {...}}``. Anything else is returned
-    as an empty list rather than guessed at, and the caller's rules will treat
-    an empty successful response as a real finding rather than an error.
+    single resource arrives as ``{"data": {...}}``, and an explicit empty
+    collection as ``{"data": []}`` or ``{"data": null}``.
+
+    Returns ``(rows, problem)``. ``problem`` is a description when the payload
+    is not an envelope WITNESS can read -- for example an error object such as
+    ``{"error": "..."}`` returned with HTTP 200, or a ``data`` member of an
+    unexpected type. Treating those as an empty list would report "the source
+    successfully returned no devices", which is a device-level conclusion drawn
+    from a response WITNESS could not actually read. That is the one mistake
+    this product exists to avoid, so an unreadable envelope is a problem, not an
+    empty result.
     """
     if isinstance(payload, list):
-        return payload
+        return payload, None
     if isinstance(payload, dict):
-        data = payload.get("data")
+        if "data" not in payload:
+            keys = ", ".join(sorted(str(k) for k in payload)) or "none"
+            return (), (
+                f"response carried no 'data' member (keys present: {keys}); "
+                "this is not a JSON:API resource envelope"
+            )
+        data = payload["data"]
         if isinstance(data, list):
-            return data
+            return data, None
         if isinstance(data, dict):
-            return [data]
-    return []
+            return [data], None
+        if data is None:
+            # JSON:API uses null for an absent to-one resource. Read it as an
+            # explicit empty result, not as a malformed payload.
+            return [], None
+        return (), (
+            f"'data' member was {type(data).__name__}, expected a list or object"
+        )
+    return (), f"response body was {type(payload).__name__}, expected a JSON:API envelope"

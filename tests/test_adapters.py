@@ -28,8 +28,9 @@ from witness.adapters.base import (
     _read_encryption,
     collect_observation,
     normalise_device_list,
+    normalise_event_list,
 )
-from witness.adapters.ring import HISTORY_EVENT_TYPES_PARAM, RingAdapter
+from witness.adapters.ring import HISTORY_EVENT_TYPES_PARAM, RingAdapter, _extract_data_list
 from witness.adapters.simulated import DEFAULT_SCENARIO, SimulatedAdapter
 from witness.engine.models import FailureKind
 
@@ -195,11 +196,20 @@ async def test_successful_empty_response_is_a_success_not_a_failure():
     assert result.data == []
 
 
-async def test_unexpected_response_shape_does_not_raise():
+async def test_unreadable_envelope_is_a_failure_not_an_empty_result():
+    """A 200 response WITNESS cannot read is not "the source has no devices".
+
+    This test previously asserted the opposite -- that an unrecognised payload
+    silently became an empty success. That behaviour let a sustained upstream
+    error envelope (`{"error": "..."}` with HTTP 200) masquerade as repeated
+    successful empty inventories, which the presence rules then turned into an
+    asserted device withdrawal. The adapter must refuse the payload instead.
+    """
     adapter = _mock(handler=lambda r: httpx.Response(200, json={"unexpected": "shape"}))
     result = await adapter.fetch_inventory()
-    assert result.ok is True
-    assert result.data == []
+    assert result.ok is False
+    assert result.failure.kind is FailureKind.MALFORMED_RESPONSE
+    assert "data" in result.failure.message
 
 
 async def test_redirect_is_not_followed():
@@ -350,6 +360,19 @@ def test_read_encryption_distinguishes_absent_from_false():
     assert _read_encryption({"e2e_encryption": {"enabled": False}}) == (True, False)
     assert _read_encryption({}) == (False, None)
     assert _read_encryption({"e2e_encryption": {}}) == (False, None)
+
+
+def test_read_encryption_refuses_a_payload_that_is_not_an_object():
+    """A non-object configurations payload is unreadable, not "encryption off".
+
+    Reporting (False, None) here is correct -- it means "the source did not
+    state" -- but it must never become (True, False), which would assert that
+    the device is unencrypted when the source said nothing.
+    """
+    assert _read_encryption(None) == (False, None)
+    assert _read_encryption("not a dict") == (False, None)
+    assert _read_encryption(42) == (False, None)
+    assert _read_encryption({"e2e_encryption": "yes"}) == (False, None)
 
 
 # --------------------------------------------------------------------------
@@ -561,4 +584,166 @@ async def test_genuinely_empty_inventory_is_still_a_success():
     assert obs.inventory.ok is True
     assert obs.inventory.failure is None
     assert obs.devices == ()
+
+
+
+# --------------------------------------------------------------------------
+# Defect #3: an unreadable envelope must never look like an empty inventory
+# --------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    "payload",
+    [
+        {"error": "upstream temporarily unavailable"},
+        {"data": "oops"},
+        {"data": 42},
+        {"meta": {"count": 0}},
+        "a bare string",
+        42,
+    ],
+)
+def test_unreadable_envelopes_are_reported_as_problems(payload):
+    rows, problem = _extract_data_list(payload)
+    assert list(rows) == []
+    assert problem is not None, f"{payload!r} was silently read as an empty list"
+
+
+@pytest.mark.parametrize(
+    "payload,expected",
+    [
+        ({"data": []}, []),
+        ({"data": None}, []),
+        ([], []),
+        ({"data": [{"id": "d1"}]}, [{"id": "d1"}]),
+        ({"data": {"id": "d1"}}, [{"id": "d1"}]),
+    ],
+)
+def test_readable_envelopes_are_not_flagged_as_problems(payload, expected):
+    """The guard must not break the legitimate shapes it sits in front of."""
+    rows, problem = _extract_data_list(payload)
+    assert problem is None
+    assert rows == expected
+
+
+async def test_error_envelope_with_http_200_fails_the_inventory_request():
+    adapter = _mock(handler=lambda r: httpx.Response(200, json={"error": "rate limited"}))
+    result = await adapter.fetch_inventory()
+    assert result.ok is False
+    assert result.failure.kind is FailureKind.MALFORMED_RESPONSE
+
+
+async def test_error_envelope_does_not_become_an_asserted_withdrawal():
+    """The end-to-end consequence of Defect #3.
+
+    A device is seen once, then the upstream starts answering HTTP 200 with an
+    error envelope. Before the fix, those responses counted as successful empty
+    inventories, and the presence rules asserted that the device had been
+    withdrawn -- a device-level conclusion drawn from a response WITNESS could
+    not read. It must instead report that it could not look.
+    """
+    calls = {"n": 0}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        calls["n"] += 1
+        if calls["n"] == 1:
+            return httpx.Response(200, json=DEVICES_BODY)
+        return httpx.Response(200, json={"error": "upstream temporarily unavailable"})
+
+    adapter = _mock(handler=handler)
+    observations = [await collect_observation(adapter) for _ in range(8)]
+
+    from witness.engine.reconcile import reconcile
+
+    recon = reconcile("ring", observations)
+    statuses = {v.device_id: v.presence.status.value for v in recon.devices}
+    assert "SOURCE_WITHDRAWN" not in statuses.values(), (
+        f"an unreadable envelope produced a withdrawal: {statuses}"
+    )
+    assert recon.source_assessment is not None
+    assert recon.source_assessment.status.value == "SOURCE_UNAVAILABLE"
+
+
+async def test_error_envelope_in_history_fails_the_history_request():
+    def handler(request: httpx.Request) -> httpx.Response:
+        if "history" in request.url.path:
+            return httpx.Response(200, json={"error": "nope"})
+        if "configurations" in request.url.path:
+            return httpx.Response(200, json=CONFIG_PLAIN)
+        return httpx.Response(200, json=DEVICES_BODY)
+
+    obs = await collect_observation(_mock(handler=handler))
+    assert obs.history is not None
+    assert obs.history.ok is False
+    assert obs.history.failure.kind is FailureKind.MALFORMED_RESPONSE
+
+
+# --------------------------------------------------------------------------
+# Defect #4: unreadable history entries must not become phantom events
+# --------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize("entry", [42, "nonsense", {"no": "identity"}, None, []])
+def test_unreadable_event_entries_are_refused(entry):
+    from witness.engine.models import utcnow
+
+    assert _normalise_event(entry, retrieved_at=utcnow()) is None
+
+
+def test_event_with_an_empty_id_is_refused():
+    from witness.engine.models import utcnow
+
+    assert _normalise_event({"id": "  ", "attributes": {}}, retrieved_at=utcnow()) is None
+    assert _normalise_event({"event_id": "", "event_type": "motion"}, retrieved_at=utcnow()) is None
+
+
+def test_normalise_event_list_reports_unreadable_entries():
+    from witness.engine.models import utcnow
+
+    events, problem = normalise_event_list([42, {"no": "id"}], retrieved_at=utcnow())
+    assert events == []
+    assert problem is not None
+    assert "2 of 2" in problem
+
+
+def test_normalise_event_list_accepts_a_clean_payload():
+    from witness.engine.models import utcnow
+
+    events, problem = normalise_event_list(HISTORY_BODY["data"], retrieved_at=utcnow())
+    assert problem is None
+    assert len(events) == 1
+    assert events[0].event_id == "ev-1"
+
+
+def test_normalise_event_list_treats_absent_history_as_empty_not_malformed():
+    from witness.engine.models import utcnow
+
+    events, problem = normalise_event_list(None, retrieved_at=utcnow())
+    assert events == []
+    assert problem is None
+
+
+async def test_unreadable_history_does_not_fabricate_a_duplicate_finding():
+    """The end-to-end consequence of Defect #4.
+
+    Three unreadable history entries used to become three phantom events with
+    the same empty identity, which the engine then reported as a real
+    EVENT_DUPLICATE. WITNESS must report that it could not read the history.
+    """
+    def handler(request: httpx.Request) -> httpx.Response:
+        if "history" in request.url.path:
+            return httpx.Response(200, json={"data": [42, "nonsense", {"no": "id"}]})
+        if "configurations" in request.url.path:
+            return httpx.Response(200, json=CONFIG_PLAIN)
+        return httpx.Response(200, json=DEVICES_BODY)
+
+    obs = await collect_observation(_mock(handler=handler))
+
+    assert obs.history is not None and obs.history.ok is False
+    assert obs.events == (), "no event may be fabricated from an unreadable payload"
+
+    from witness.engine.reconcile import reconcile
+
+    recon = reconcile("ring", [obs])
+    assert recon.events == ()
 

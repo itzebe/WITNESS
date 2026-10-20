@@ -112,7 +112,23 @@ async def collect_observation(
             f"{adapter.source_id}:/v1/devices/{primary.device_id}/configurations",
         )
         if history.ok:
-            events = [_normalise_event(e, observed_at) for e in (history.data or [])]
+            events, unreadable = normalise_event_list(history.data, observed_at)
+            if unreadable:
+                # Mirror the inventory guard: a history payload WITNESS cannot
+                # fully read must not be reinterpreted as a shorter event list.
+                # An unreadable entry would otherwise become a phantom event
+                # (id "", type "unknown"), and several of them collapse into a
+                # single fabricated EVENT_DUPLICATE finding.
+                history = FetchResult.failed(
+                    history.endpoint,
+                    Failure(
+                        kind=FailureKind.MALFORMED_RESPONSE,
+                        message=unreadable,
+                        http_status=history.http_status,
+                    ),
+                    observed_at=history.observed_at,
+                )
+                events = []
 
     # Re-derive encryption state onto the primary device record from the
     # configurations response, since that is where the source reports it.
@@ -266,18 +282,27 @@ def normalise_device_list(data: Any) -> tuple[tuple[DeviceRecord, ...], str | No
     return tuple(devices), None
 
 
-def _normalise_event(raw, retrieved_at: datetime) -> EventRecord:
+def _normalise_event(raw, retrieved_at: datetime) -> EventRecord | None:
     """Normalise one event as returned by a source.
 
     ``classification`` is populated *only* from a field the source actually
     returned. Ring's event history does not carry one, so it stays None and the
     CLASSIFICATION_UNAVAILABLE rule fires downstream. That is the intended
     behaviour, not a gap.
+
+    Returns ``None`` when the entry cannot be interpreted as an event. It must
+    never invent one: an unreadable entry would otherwise become an event with
+    an empty id and the type "unknown", which WITNESS would then report as a
+    real finding. Several such entries collapse into one fabricated
+    EVENT_DUPLICATE, and a phantom event is exactly the kind of unsupported
+    claim this product refuses to make.
     """
     if not isinstance(raw, dict):
-        return EventRecord(event_id="", event_type="unknown", reported_at=None, retrieved_at=retrieved_at)
+        return None
 
     if "event_type" in raw and "attributes" not in raw:  # already normalised
+        if not str(raw.get("event_id") or "").strip():
+            return None
         return EventRecord(
             event_id=str(raw.get("event_id") or ""),
             event_type=str(raw.get("event_type") or "unknown"),
@@ -288,7 +313,13 @@ def _normalise_event(raw, retrieved_at: datetime) -> EventRecord:
         )
 
     attributes = raw.get("attributes") or {}
-    event_id = str(raw.get("id") or "")
+    if not isinstance(attributes, dict):
+        attributes = {}
+    event_id = str(raw.get("id") or attributes.get("id") or "").strip()
+    if not event_id:
+        # No identity: WITNESS cannot tell this event apart from any other, so
+        # it cannot count it, deduplicate it, or report it as observed.
+        return None
     event_type = str(attributes.get("event_type") or "unknown")
     reported = parse_iso(attributes.get("start") or attributes.get("created_at"))
     classification = attributes.get("sub_type") or attributes.get("classification")
@@ -300,3 +331,39 @@ def _normalise_event(raw, retrieved_at: datetime) -> EventRecord:
         classification=str(classification) if classification else None,
         raw_field_names=tuple(sorted(attributes.keys())),
     )
+
+
+def normalise_event_list(
+    data: Any,
+    retrieved_at: datetime,
+) -> tuple[list[EventRecord], str | None]:
+    """Normalise an event history payload, refusing to invent events.
+
+    Returns ``(events, problem)``. ``problem`` is a human-readable description
+    when part of the payload could not be interpreted as an event.
+
+    A partially-understood history is treated as a problem rather than as a
+    short event list: silently dropping entries would understate what the source
+    returned, and fabricating placeholders for them would overstate it. Both are
+    dishonest, so WITNESS refuses to interpret the payload at all.
+    """
+    if data is None:
+        return [], None
+    if not isinstance(data, list):
+        return [], f"expected a list of event resources, got {type(data).__name__}"
+
+    events: list[EventRecord] = []
+    unreadable = 0
+    for entry in data:
+        record = _normalise_event(entry, retrieved_at)
+        if record is None:
+            unreadable += 1
+        else:
+            events.append(record)
+
+    if unreadable:
+        return [], (
+            f"{unreadable} of {len(data)} event resource(s) carried no usable identity "
+            "and could not be interpreted"
+        )
+    return events, None
