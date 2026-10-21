@@ -101,25 +101,53 @@ def _all_device_ids(observations: Sequence[Observation]) -> dict[str, DeviceReco
     return found
 
 
-def _encryption_reading_at(
-    observations: Sequence[Observation], device_id: str
-) -> datetime | None:
-    """When the encryption value on the latest record was actually read.
+def _encryption_reading(
+    observations: Sequence[Observation],
+    device_id: str,
+    fallback_record: DeviceRecord,
+) -> tuple[Observation | None, DeviceRecord]:
+    """The newest pass that actually queried this device's configurations.
 
-    The record for a device can outlive the observation that read its
-    configurations -- a device that has since left the inventory keeps the
-    reading taken while it was still inspected. Stamping that value with the
-    latest observation's time would claim the source reported it now. Returns
-    the observed_at of the newest observation that both inspected this device
-    and completed a configurations request.
+    A content claim has to come from one pass: the request that was made, the
+    response that carried it, the device record read in it, and the time it was
+    taken. Reading the encryption *value* from one observation while testing
+    whether the request was *made* against another produces sentences that are
+    true of neither.
+
+    The record for a device outlives the observation that read its
+    configurations -- a device that has left the inventory keeps the reading
+    taken while it was still inspected -- so the newest inspection is not
+    necessarily the latest observation. Returns ``(obs, record)`` from that
+    pass, or ``(None, fallback_record)`` when this device was never inspected,
+    which the content rule reports as "not asked".
     """
-    at: datetime | None = None
-    for obs in observations:
+    for obs in reversed(observations):
         if obs.inspected_device_id != device_id:
             continue
-        if obs.configurations is not None and obs.configurations.ok:
-            at = obs.observed_at
-    return at
+        record = next((d for d in obs.devices if d.device_id == device_id), None)
+        if record is not None:
+            return obs, record
+    return None, fallback_record
+
+
+def _first_retrieval_times(observations: Sequence[Observation]) -> dict[str, datetime]:
+    """Earliest retrieval time seen for each event identity, across all passes.
+
+    An event's ``retrieved_at`` is stamped when its response was received, so a
+    re-delivery on a later poll overwrites it with a later time. Lateness is a
+    claim about the first time WITNESS saw the event, so it has to be computed
+    against the earliest retrieval, not the most recent one.
+    """
+    first: dict[str, datetime] = {}
+    for obs in observations:
+        if obs.history is None or not obs.history.ok:
+            continue
+        for event in obs.events:
+            key = event.identity_key()
+            prev = first.get(key)
+            if prev is None or event.retrieved_at < prev:
+                first[key] = event.retrieved_at
+    return first
 
 
 def reconcile(
@@ -210,14 +238,13 @@ def reconcile(
             else:
                 presence = rule_unknown(device_id, record.device_label)
 
+        reading_obs, reading_record = _encryption_reading(obs_list, device_id, record)
         views.append(
             DeviceView(
                 device_id=device_id,
                 device_label=record.device_label,
                 presence=presence,
-                content=rule_content_state(
-                    latest, record, _encryption_reading_at(obs_list, device_id)
-                ),
+                content=rule_content_state(reading_obs, reading_record, latest),
                 staleness=rule_staleness(presence, now, policy),
                 first_seen_at=seen_first.get(device_id),
                 last_seen_at=seen_last.get(device_id),
@@ -225,7 +252,11 @@ def reconcile(
             )
         )
 
-    events = tuple(rule_event_assessments(latest, policy)) if latest.history and latest.history.ok else ()
+    events = (
+        tuple(rule_event_assessments(latest, policy, _first_retrieval_times(obs_list)))
+        if latest.history and latest.history.ok
+        else ()
+    )
 
     limitations: list[Assessment] = []
     if latest.history is not None and latest.history.ok and latest.events:

@@ -17,7 +17,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import datetime, timedelta
-from typing import Any, Sequence
+from typing import Any, Mapping, Sequence
 
 from .models import (
     Assessment,
@@ -259,22 +259,51 @@ def rule_inventory_absent(
 
 
 def rule_content_state(
-    obs: Observation,
+    reading_obs: Observation | None,
     device: DeviceRecord,
-    reading_observed_at: datetime | None = None,
+    latest_obs: Observation,
 ) -> Assessment:
     """rule:content_encrypted / rule:content_not_encrypted / rule:content_state_unknown
 
     Reads only what the source stated. ``e2e_encrypted is None`` means the
     source did not state a value, which is a different finding from "false".
 
-    ``reading_observed_at`` is the time of the observation that actually read
-    this device's configurations. The encryption value can be older than the
-    latest observation -- a device that has since left the inventory keeps the
-    reading taken while it was still inspected -- so the explanation must not
-    stamp that reading with the latest observation's time.
+    The assessment is derived from ``reading_obs`` -- the newest pass that
+    actually requested this device's configurations -- so the value, the
+    field-presence check, the request that was made and the time all come from
+    one pass. Reading the value from one observation and testing whether the
+    request was made against another produces a sentence true of neither.
+
+    ``reading_obs`` is None when this device was never inspected by any pass;
+    that is "not asked", which is different from "asked and the field was
+    absent", and it is reported against ``latest_obs`` because that is the pass
+    whose scope failed to include the device.
     """
-    reported_at = reading_observed_at or obs.observed_at
+    if reading_obs is None:
+        # One observation inspects one device. For every other device WITNESS
+        # never asked, so it must not describe a response that does not exist.
+        # "Not asked" is a different finding from "asked and absent".
+        return Assessment(
+            status=Status.CONTENT_UNAVAILABLE,
+            subject_type="device",
+            subject_id=device.device_id,
+            subject_label=device.device_label,
+            rule_id="rule:content_state_unknown",
+            explanation=(
+                f"WITNESS did not request configurations for "
+                f"{device.device_label} at {iso(latest_obs.observed_at)}. This observation "
+                "inspects one device, so content readability for this device is "
+                "unknown. WITNESS has not established that content is readable, nor "
+                "that it is unreadable."
+            ),
+            observed_at=latest_obs.observed_at,
+            scope=f"configurations:{latest_obs.source_id}",
+            evidence_refs=(latest_obs.observation_id,),
+            detail={"configurations_attempted": False},
+            axis="content",
+        )
+
+    obs = reading_obs
     base = dict(
         subject_type="device",
         subject_id=device.device_id,
@@ -305,24 +334,6 @@ def rule_content_state(
         )
 
     if not device.encryption_stated:
-        asked = obs.inspected_device_id == device.device_id and obs.configurations is not None
-        if not asked:
-            # One observation inspects one device. For every other device WITNESS
-            # never asked, so it must not describe a response that does not
-            # exist. "Not asked" is a different finding from "asked and absent".
-            return Assessment(
-                status=Status.CONTENT_UNAVAILABLE,
-                rule_id="rule:content_state_unknown",
-                explanation=(
-                    f"WITNESS did not request configurations for "
-                    f"{device.device_label} at {iso(obs.observed_at)}. This observation "
-                    "inspects one device, so content readability for this device is "
-                    "unknown. WITNESS has not established that content is readable, nor "
-                    "that it is unreadable."
-                ),
-                detail={"configurations_attempted": False},
-                **base,
-            )
         field_present = "e2e_encryption" in (obs.configurations.data or {})
         if not field_present:
             return Assessment(
@@ -360,7 +371,7 @@ def rule_content_state(
             rule_id="rule:content_encrypted",
             explanation=(
                 f"{device.device_label} reported e2e_encryption.enabled = true at "
-                f"{iso(reported_at)}. The source has told us that content from this "
+                f"{iso(obs.observed_at)}. The source has told us that content from this "
                 "device is not readable by this integration. This is a confirmed "
                 "limitation, not a fault: WITNESS can report the device's presence but "
                 "not its content. The field does not say which encryption mode is in "
@@ -375,7 +386,7 @@ def rule_content_state(
         rule_id="rule:content_not_encrypted",
         explanation=(
             f"{device.device_label} reported e2e_encryption.enabled = false at "
-            f"{iso(reported_at)}. Content from this device is expected to be readable "
+            f"{iso(obs.observed_at)}. Content from this device is expected to be readable "
             "by this integration. WITNESS has not necessarily retrieved any content; this "
             "states only that encryption is not the obstacle."
         ),
@@ -407,10 +418,19 @@ def deduplicate_events(events: Sequence[EventRecord]) -> tuple[list[EventRecord]
 def rule_event_assessments(
     obs: Observation,
     policy: Policy = DEFAULT_POLICY,
+    first_retrieval_times: Mapping[str, datetime] | None = None,
 ) -> list[Assessment]:
     """rule:event_present / rule:event_late / rule:event_duplicate
 
     Produces one assessment per unique event, plus duplicate annotations.
+
+    Lateness is measured against the *first* time WITNESS retrieved the event,
+    not the most recent poll. An event's ``retrieved_at`` is stamped when its
+    response arrived, so a re-delivery on a later poll overwrites it with a
+    later time; measuring against that would report an event first seen on time
+    as late by the polling interval. ``first_retrieval_times`` carries the
+    earliest retrieval per identity key across the observation history; when it
+    is absent (a single pass), the event's own retrieval time is the first.
     """
     if obs.history is None or not obs.history.ok:
         return []
@@ -420,9 +440,12 @@ def rule_event_assessments(
     for event in unique:
         key = event.identity_key()
         dup = counts.get(key, 1)
+        first_retrieved = event.retrieved_at
+        if first_retrieval_times is not None:
+            first_retrieved = first_retrieval_times.get(key, event.retrieved_at)
         delay = None
         if event.reported_at is not None:
-            delay = event.retrieved_at - event.reported_at
+            delay = first_retrieved - event.reported_at
 
         is_late = delay is not None and delay > policy.event_lateness_threshold
         base = dict(
@@ -437,6 +460,7 @@ def rule_event_assessments(
                 "event_type": event.event_type,
                 "reported_at": iso(event.reported_at),
                 "retrieved_at": iso(event.retrieved_at),
+                "first_retrieved_at": iso(first_retrieved),
                 "duplicate_count": dup,
                 "identity_key": key,
                 "classification": event.classification,
@@ -469,7 +493,7 @@ def rule_event_assessments(
                     rule_id="rule:event_late",
                     explanation=(
                         f"This event reports a source time of {iso(event.reported_at)} but "
-                        f"was first retrieved at {iso(event.retrieved_at)}, a delay of "
+                        f"was first retrieved at {iso(first_retrieved)}, a delay of "
                         f"{seconds // 60}m {seconds % 60}s. WITNESS notes the delay because "
                         f"it means a real-time view at {iso(event.reported_at)} would not "
                         "have shown this event. The delay does not make the event inaccurate."
@@ -485,7 +509,7 @@ def rule_event_assessments(
                 rule_id="rule:event_present",
                 explanation=(
                     f"The source returned this event with source-reported time "
-                    f"{iso(event.reported_at)}, retrieved at {iso(event.retrieved_at)}. This "
+                    f"{iso(event.reported_at)}, first retrieved at {iso(first_retrieved)}. This "
                     "establishes the source reported the event. It does not establish that "
                     "the source reported every event."
                 ),

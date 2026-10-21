@@ -327,7 +327,7 @@ STATUS_SPEC: dict[Status, StatusSpec] = {
         ),
         explanation_template=(
             "The source returned this event with source-reported time "
-            "{reported_at}, retrieved at {observed_at}. This establishes the "
+            "{reported_at}, first retrieved at {observed_at}. This establishes the "
             "source reported the event. It does not establish that the source "
             "reported every event."
         ),
@@ -337,12 +337,14 @@ STATUS_SPEC: dict[Status, StatusSpec] = {
         status=Status.EVENT_LATE,
         label="Event arrived late",
         definition=(
-            "The event's source-reported time is earlier than the retrieval "
-            "time by more than the configured lateness threshold."
+            "The event's source-reported time is earlier than the first time "
+            "WITNESS retrieved it by more than the configured lateness threshold."
         ),
         trigger=(
             "rule:event_late -- the history request succeeded AND "
-            "(retrieved_at - reported_at) > EVENT_LATENESS_THRESHOLD."
+            "(first_retrieved_at - reported_at) > EVENT_LATENESS_THRESHOLD, where "
+            "first_retrieved_at is the earliest retrieval of this event identity "
+            "across the observation history."
         ),
         required_evidence=("history_response",),
         forbidden_conclusions=(

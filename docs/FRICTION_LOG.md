@@ -396,7 +396,72 @@ before submission. The adapter's no-retry behaviour stands on its own merits.
 
 ---
 
-## 8. What we deliberately did not do
+## 8. Our own engine made the mistake the product exists to prevent
+
+**What happened.** While closing the four scenarios the Playground cannot
+produce (withdrawal, encryption transition, duplicate delivery, late arrival),
+we found three claims in WITNESS's own reconciliation that the evidence did not
+support. All three were reachable from ordinary inputs; none crashed; each
+produced a confident, specific sentence that was false.
+
+1. **A reading we discarded.** A device's encryption reading is retained on its
+   record after the device leaves the inventory. But the content rule read the
+   *latest* observation to decide whether the configurations request had been
+   made, and the adapter never requests configurations when the inventory is
+   empty — so the latest observation had no response, and the rule reported
+   `CONTENT_UNAVAILABLE`, throwing away a reading WITNESS had actually taken.
+2. **A citation to a pass that never looked.** The content assessment cited the
+   latest observation regardless of which pass took the reading. When the
+   inspected device changed, the assessment for the old device cited an
+   observation that had inspected a *different* device — a ledger trace pointing
+   at evidence that could not support it.
+3. **A delay that grew with every poll.** An event's retrieval time is
+   re-stamped on every re-delivery. Lateness was measured from that value, so an
+   event first seen on time and re-delivered thirty minutes later was reported
+   late by thirty minutes, with an explanation asserting a "first retrieved at"
+   time that was not the first retrieval.
+
+**Why it matters.** The product's entire argument is that it separates what the
+source actually said from what we would like it to have said. Finding this class
+in our own engine — in the exact three shapes the task asked us to close — is the
+strongest evidence that the discipline is real and not a presentation layer.
+
+**Friction record**
+
+- **Task attempted:** Close the verification gaps for four scenarios the
+  Playground cannot produce (device withdrawal, encryption transitions,
+  duplicate events, late/out-of-order events).
+- **Steps taken:** Read the reconciliation path end to end and drove the real
+  pipeline (adapter → observation → store → reconcile → ledger) with probes that
+  built observations shaped exactly as `collect_observation` produces them,
+  rather than through the existing test fixtures.
+- **Expected:** The existing tests already claimed to pin the retention of an
+  encryption reading, the citation of evidence, and the measurement of lateness.
+- **Actual:** All three claims were false on the real path. The retention test
+  passed only because its fixture gave the later observation a successful empty
+  configurations response — a shape the real adapter cannot produce. The
+  evidence-citation and lateness claims were not pinned at all: the existing
+  assertions checked only that a reference was non-empty and that a status was
+  right, never *which* observation was cited.
+- **Severity:** High for the product's credibility. The failures were invisible
+  in normal operation and would have surfaced as an overclaim in front of a
+  judge, which is worse than a crash.
+- **Workaround used:** Derive each content assessment from the newest pass that
+  actually queried the device, so the value, the field check, the time and the
+  cited evidence all come from one observation; measure event lateness from the
+  first retrieval of that event identity across the observation history; and
+  correct the one fixture that described a state the adapter cannot produce.
+- **Actionable suggestion:** A test that pins a guarantee should build its inputs
+  the way the real adapter does. A fixture that constructs a state the pipeline
+  cannot emit will keep passing while the real path is broken — which is exactly
+  what happened here.
+
+**Friction rating: high.** The most valuable defect found in the project, and it
+was found by distrusting our own tests rather than by any external signal.
+
+---
+
+## 9. What we deliberately did not do
 
 - We did **not** create an Amazon Developer account, because the task
   constraints prohibit creating accounts.

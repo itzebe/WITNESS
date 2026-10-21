@@ -470,9 +470,15 @@ def test_policy_threshold_is_configurable_and_reported():
 
 def test_counts_partition_every_device():
     """Every device must be accounted for in exactly one presence bucket."""
-    obs1 = make_observation("o1", devices=[device("d1", "A"), device("d2", "B", encrypted=True), device("d3", "C")])
+    # The encrypted device must be the one this pass actually inspects. One
+    # observation requests configurations for devices[0] only, so a non-first
+    # device can never carry a stated encryption value -- the content rule would
+    # be describing a request that was never made for it.
+    obs1 = make_observation("o1", devices=[device("d1", "A"), device("d2", "B"), device("d3", "C")])
     obs2 = make_observation("o2", observed_at=T0 + timedelta(minutes=10), devices=[device("d1", "A")])
-    obs3 = make_observation("o3", observed_at=T0 + timedelta(minutes=20), devices=[device("d1", "A")])
+    obs3 = make_observation(
+        "o3", observed_at=T0 + timedelta(minutes=20), devices=[device("d1", "A", encrypted=True)]
+    )
     recon = reconcile("ring", [obs1, obs2, obs3], now=T0 + timedelta(minutes=20))
     counted = (recon.counts["observed"] + recon.counts["not_observed"]
                + recon.counts["withdrawn"] + recon.counts["unavailable"]

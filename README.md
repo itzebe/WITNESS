@@ -95,7 +95,7 @@ RING_ACCESS_TOKEN="<token>" python scripts/live_smoke.py
 python -m pytest tests/ -q
 ```
 
-337 tests. The suite covers the status taxonomy, the reconciliation rules, the
+368 tests. The suite covers the status taxonomy, the reconciliation rules, the
 ledger's tamper detection *and its documented limits*, the Ring adapter's full
 HTTP surface against a mock transport, the service pipeline, the HTTP API, and
 the front end (including a headless harness that runs every render function
@@ -106,6 +106,15 @@ encryption transition, duplicate delivery, late arrival, outage, and evidence
 unavailability — and pins the conclusion WITNESS must *not* reach from
 insufficient evidence. `docs/EVIDENCE_MATRIX.md` records the corresponding
 expected behaviour, evidence, and verification status per class.
+
+`tests/test_scenario_gaps.py` covers the same four scenarios the Ring Developer
+Playground cannot produce — withdrawal, configuration transitions, duplicate
+delivery, and late/out-of-order arrival — end to end through the deterministic
+engine, including the behaviour that only appears across more than one
+observation (a device returning after a withdrawal, a re-delivered event, a
+reading retained after the device leaves the inventory). It also carries the
+regression tests for the two defects described under "Two clocks, one claim"
+below.
 
 Notable tests:
 
@@ -121,6 +130,13 @@ Notable tests:
   a successful response, not a device disappearing.
 - `test_current_encryption_value_does_not_assert_a_transition` — WITNESS reports
   the current reading; it does not claim a change it cannot evidence.
+- `test_configuration_reading_survives_a_device_leaving_the_real_pipeline` —
+  a reading WITNESS took is not discarded by a later pass that could not see the
+  device.
+- `test_content_assessment_cites_the_observation_that_took_the_reading` — the
+  evidence link points at the pass that took the reading, not the latest pass.
+- `test_on_time_event_redelivered_later_is_not_reported_late` — lateness is
+  measured from the first retrieval, not the most recent re-delivery.
 
 ## Project layout
 
@@ -140,7 +156,7 @@ witness/
   service.py        Application service; wires observations to the ledger
   api.py            FastAPI read model
 web/                Front end (no build step)
-tests/              337 tests
+tests/              368 tests
 docs/               Friction log, demo script, submission notes, evidence matrix
 ```
 
@@ -163,6 +179,42 @@ These are enforced by tests, not just by intention.
   evidence quality. It does not tell you someone is safe.
 - `SOURCE_WITHDRAWN` means the source stopped exposing a device. It explicitly
   does not mean the device was removed, tampered with, or broken.
+
+## Three claims that were wrong, and are now pinned
+
+All were found by reading the real pipeline rather than the code that was meant
+to test it. None crashed; each produced a confident statement the evidence did
+not support. They are recorded here because the product's whole argument is that
+it does not do this.
+
+**A reading discarded by the pass that could not see it.** A device's encryption
+reading is taken in one observation and retained on its record. The content rule
+read the *latest* observation to decide whether the configurations request had
+been made, but `collect_observation` never requests configurations when the
+inventory is empty — so the latest observation had no configurations response,
+and the rule reported `CONTENT_UNAVAILABLE`, discarding a reading WITNESS had
+actually taken. The existing test passed only because its fixture gave the later
+observation a successful empty configurations response, which the real adapter
+never produces. The rule now derives the assessment from the newest pass that
+actually queried the device, and cites that pass. Pinned by
+`test_configuration_reading_survives_a_device_leaving_the_real_pipeline`.
+
+**A citation to an observation that never queried the device.** The content
+assessment cited the latest observation regardless of which pass had taken the
+reading. When a device stopped being the inspected one, its assessment pointed at
+an observation that had inspected a *different* device — a ledger trace that
+could not support the claim it was attached to. Now pinned by
+`test_content_assessment_cites_the_observation_that_took_the_reading` and
+`test_content_assessment_never_cites_a_pass_that_did_not_query_the_device`.
+
+**A lateness claim that grew with every poll.** An event's `retrieved_at` is
+stamped when its response arrives, so a re-delivery on a later poll overwrote it
+with a later time. Lateness was computed from that value, so an event first seen
+on time and re-delivered thirty minutes later was reported `EVENT_LATE` with a
+thirty-minute delay, and the explanation asserted a "first retrieved at" time
+that was not the first retrieval. Lateness is now measured from the earliest
+retrieval of that event identity across the observation history. Pinned by
+`test_on_time_event_redelivered_later_is_not_reported_late`.
 
 ## License
 

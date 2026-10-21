@@ -18,7 +18,7 @@ them as identical. Almost every design decision traces back to that.
 
 ```bash
 pip install -r requirements.txt
-python -m pytest tests/ -q                  # 337 tests, ~4s
+python -m pytest tests/ -q                  # 368 tests, ~4s
 python -m uvicorn witness.api:app --port 8000
 python scripts/demo_tamper.py               # ledger tamper demo
 node scripts/render_check.js <overview.json> <spec.json> [devices.json|-] [verdicts.json]
@@ -385,6 +385,52 @@ submission artifacts rather than the code:
 Before submission, re-read every artifact against the current official
 documentation and the current competition rules, not against our memory of
 them. `tests/test_docs_honesty.py` pins each correction.
+
+### The ninth class: a claim read from the wrong pass
+
+An explanation can be assembled from two passes that never coexisted. The
+content rule read the encryption *value* from a device record (which persists
+across observations) while testing whether the configurations *request* had been
+made against the latest observation. Two defects came out of that one shape:
+
+- A reading was discarded by a pass that could not see the device. A device's
+  encryption reading is retained on its record after it leaves the inventory, but
+  `collect_observation` never requests configurations when the inventory is
+  empty, so the latest observation has `configurations=None`. The rule read that,
+  reported `CONTENT_UNAVAILABLE`, and threw away a reading WITNESS had taken.
+  The existing "reading survives" test passed only because its fixture gave the
+  later observation a successful empty configurations response -- a shape the
+  real adapter cannot produce.
+- The assessment cited the latest observation regardless of which pass had taken
+  the reading, so when the inspected device changed, the content assessment for
+  the old device cited an observation that had inspected a *different* device.
+
+The fix is to derive the whole assessment from the newest pass that actually
+queried the device (`_encryption_reading` in `reconcile.py`): the value, the
+field-presence check, the request that was made, the time and the evidence
+reference all come from one observation. `rule_content_state` now takes that
+observation and falls back to "not asked" -- reported against the latest pass --
+when no pass ever queried the device.
+
+The event rule had the same shape in the time dimension: lateness was measured
+from the event's `retrieved_at`, which is re-stamped on every re-delivery, so an
+event first seen on time was reported late by the polling interval. Lateness is
+now measured from `_first_retrieval_times`, the earliest retrieval of that event
+identity across the history.
+
+When a rule combines a value that persists across observations with a check
+about a single request, ask which pass each half came from -- and prefer deriving
+both from the pass that actually made the request. When a rule subtracts two
+timestamps, ask whether either can be re-stamped by a later pass. Pinned by
+`tests/test_scenario_gaps.py`:
+`test_configuration_reading_survives_a_device_leaving_the_real_pipeline`,
+`test_content_assessment_cites_the_observation_that_took_the_reading`,
+`test_content_assessment_never_cites_a_pass_that_did_not_query_the_device`,
+`test_on_time_event_redelivered_later_is_not_reported_late`.
+
+A fixture that builds a state the real adapter cannot produce will pass while the
+real path is broken. When a test exists to pin a guarantee, check the fixture is
+shaped like the pipeline it is standing in for.
 
 ## Submission artifacts
 

@@ -6,7 +6,7 @@ Everything a reviewer needs to verify this submission, in one place.
 
 ```bash
 pip install -r requirements.txt
-python -m pytest tests/ -q          # expect 337 passed
+python -m pytest tests/ -q          # expect 368 passed
 python -m uvicorn witness.api:app --port 8000
 ```
 
@@ -72,7 +72,7 @@ verification status. Read the two together.
 - Credential redaction: no token appears in any error message or API response.
 - The front end renders every view against real payloads (headless harness,
   `scripts/render_check.js`).
-- 337 automated tests pass.
+- 368 automated tests pass.
 
 ### VERIFIED LIVE — exercised against the real Ring Developer Playground
 
@@ -302,6 +302,12 @@ These are not aspirations; they are asserted in the suite.
 | No token leaks through the API | `test_ring_connection_never_leaks_a_token` |
 | The UI states the ledger limitation | `test_ui_states_the_ledger_limitation` |
 | The overview verdict never contradicts itself | `test_overview_verdict_never_contradicts_itself` |
+| An encryption reading survives the device leaving the inventory | `test_configuration_reading_survives_a_device_leaving_the_real_pipeline` |
+| Every content finding cites the pass that took the reading | `test_content_assessment_cites_the_observation_that_took_the_reading`, `test_content_assessment_never_cites_a_pass_that_did_not_query_the_device` |
+| Lateness is measured from the first retrieval, not a re-delivery | `test_on_time_event_redelivered_later_is_not_reported_late` |
+| A device never inspected is "not asked", not "asked and absent" | `test_a_device_that_was_never_inspected_reports_not_asked` |
+| A device returning after a withdrawal is observed again | `test_device_reappearing_after_withdrawal_is_observed_again` |
+| The fields the content and lateness fixes read survive persistence | `test_inspected_device_and_reading_survive_the_store`, `test_first_retrieval_survives_the_store` |
 
 ## What WITNESS does not claim
 
@@ -323,7 +329,7 @@ witness/engine/      Deterministic core: statuses, rules, reconciliation, ledger
 witness/adapters/    Ring (live, read-only) and simulated sources
 witness/api.py       HTTP read model
 web/                 Front end, no build step
-tests/               337 tests
+tests/               368 tests
 scripts/             render_check.js, demo_tamper.py
 docs/                FRICTION_LOG.md, DEMO_SCRIPT.md, SUBMISSION.md, EVIDENCE_MATRIX.md
 ```
