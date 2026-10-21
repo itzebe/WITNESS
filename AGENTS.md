@@ -141,11 +141,17 @@ Do not reorder this.
   `device_configurations` and `event_history` are therefore reported `VERIFIED`;
   every other Ring capability stays `DOCUMENTED`. Pinned by
   `test_ring_capabilities_claim_only_what_was_actually_exercised`.
-- **No credential is registered in the secret configuration.** `RING_ACCESS_TOKEN`
-  is absent from the environment by default; the token above was passed inline
-  for the run and never written to disk, source, or Git. A fresh run without it
-  exits 2 (not configured). Never commit a token; `.gitignore` covers `.env`,
-  `*.pem`, `*.key`, `token*.txt`.
+- **`RING_ACCESS_TOKEN` is registered in the approved settings secret store**
+  (agent-server `PUT /api/settings/secrets`), persisted Fernet-encrypted in
+  `~/.openhands/secrets.json` (mode 600, outside the repo) and never written to
+  source, Git, or the demo transcript. It is **not** injected into an arbitrary
+  shell automatically — read it over the API and pass it through the child
+  environment (see the injection note below). A fresh run without it exits 2
+  (not configured). Never commit a token; `.gitignore` covers `.env`, `*.pem`,
+  `*.key`, `token*.txt`, `*.db`.
+  **Playground tokens expire ~30 minutes**, so re-register before any live demo
+  and confirm the gate with `python scripts/live_smoke.py` immediately before
+  recording.
 - **The approved secret store is the agent-server on port 60000, not 8001.**
   `PUT/GET/DELETE /api/settings/secrets` (auth: `X-Session-API-Key: $SESSION_API_KEY`)
   register secrets that persist, Fernet-encrypted, in `~/.openhands/secrets.json`
@@ -158,6 +164,16 @@ Do not reorder this.
   register `RING_ACCESS_TOKEN`, the environment owner must supply a fresh,
   undisclosed Playground token — do not reuse a disclosed one or paste a token
   into chat.
+- **Registration does not inject; fetch-then-pass does.** Verified by probe: a
+  name registered through `/api/settings/secrets` is *not* present in a later
+  shell even when the name appears in the command text. Conversation-scoped
+  secrets (`POST /api/conversations/{id}/secrets`, body
+  `{"secrets":{"NAME":{"kind":"StaticSecret","value":...}}}`) *are* injected into
+  the running conversation's environment. For an arbitrary process such as
+  `scripts/live_smoke.py`, the working path is: read the value over
+  `GET /api/settings/secrets/{name}` and pass it through the child environment.
+  That round-trip was confirmed byte-exact by SHA-256 comparison. Never print the
+  value or a fingerprint of it in a transcript.
 - The Ring Developer Playground is behind an Amazon Developer sign-in
   (`amazon.com/ap/signin`), and its token lasts **30 minutes**. Creating an
   account is prohibited by the task constraints, so tokens must be supplied
