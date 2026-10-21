@@ -54,6 +54,45 @@ From `witness/engine/rules.py`, `Policy`:
 | `event_lateness_threshold` | 5 minutes | Below this, delay is not worth annotating. |
 | `staleness_threshold` | 30 minutes | Older evidence is not presented as current. |
 | `reconciliation_window` | 20 observations | Bounds the absence count. |
+| `MAX_OBSERVATIONS_PER_SOURCE` | 200 observations per source | Retention bound on stored observations; oldest pruned first. See the retention boundary below. |
+
+---
+
+## Retention boundary — observations are bounded, the ledger is not
+
+Reconciliation reads only the observations the store still holds, and the store
+keeps at most `MAX_OBSERVATIONS_PER_SOURCE` (200) observations per source,
+pruning the oldest first (`witness/store.py`). This is a deliberate limit: it
+bounds both disk use and the amount of household history retained.
+
+It has one consequence a reader should know. A device is only visible in the
+current reconciliation view while an observation that carried it is still inside
+the retained window. If every observation that reported the device is pruned
+before the device reappears, the device **drops out of the current view
+entirely**: it is not listed as `OBSERVED`, not listed as `SOURCE_WITHDRAWN`, not
+listed as unknown, and no limitation entry is raised for it. The view simply no
+longer mentions it.
+
+This is **silence, not a false claim** — WITNESS does not assert that the device
+was removed, and it does not report a withdrawal from evidence it no longer
+holds. It is the honest consequence of a bounded window, and it is the same
+principle stated elsewhere in this matrix: absent evidence is not evidence of
+absence. Reaching the boundary requires roughly 200 further observations in
+which the device does not appear (e.g. repeated polls over a long period).
+
+The **ledger is not pruned**. Pruning removes observations only; the ledger keeps
+every observation and assessment record, so the earlier findings about a
+device — including any withdrawal it did assert while the device was still in
+the window — remain in the audit trail and the chain still verifies. Only the
+derived *current* view is bounded by retention.
+
+**Verification:** characterised against the real pipeline (scripted adapter →
+`collect_observation` → `Store` → `reconcile`). After 200 observations in which
+the device was absent, the store retained 200 observations, the device id was
+absent from the retained window, and the current reconciliation listed only the
+remaining device with no withdrawal and no limitation entry; the ledger retained
+its records for the pruned device and verified. This boundary is documented, not
+pinned by a test.
 
 ---
 
@@ -78,6 +117,11 @@ From `witness/engine/rules.py`, `Policy`:
 **Explicit non-claim:** an empty event history is never treated as a withdrawal.
 An empty history is a *successful* response reporting no events, and the device
 is still `OBSERVED`. Pinned by `test_empty_event_history_does_not_produce_a_withdrawal`.
+
+**Retention caveat:** the withdrawal count reads only retained observations. If
+every observation that carried the device is pruned before the device reappears,
+the device leaves the current view silently rather than being reported withdrawn.
+See *Retention boundary* above.
 
 ---
 
@@ -320,3 +364,9 @@ A passing test suite does not establish that every incident class works against
 live Ring data. The engine's interpretation is well covered; the live service's
 ability to produce these conditions is not demonstrated, and the Playground
 cannot demonstrate it.
+
+It also does not claim the current view is complete history. Reconciliation sees
+only the retained observation window, so a device whose observations have all
+been pruned drops out of the current view silently rather than being reported
+withdrawn (see *Retention boundary*). The ledger keeps the full history; the
+current view does not.
