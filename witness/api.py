@@ -218,9 +218,14 @@ def create_app(db_path: str | None = None) -> FastAPI:
             "base_url": adapter._base_url,
             "capabilities": adapter.capabilities(),
             "verification_note": (
-                "A live authenticated call has not been performed by WITNESS in this "
-                "environment. Set RING_ACCESS_TOKEN to a token from the Ring Developer "
-                "Playground to exercise the live path."
+                "Three read-only endpoints have been exercised against the Ring Developer "
+                "Playground: GET /v1/devices, GET /v1/devices/{id}/configurations and "
+                "GET /v1/history/devices/{id}/events all returned HTTP 200. Those "
+                "capabilities are reported VERIFIED; everything else in the Ring interface "
+                "remains DOCUMENTED. The Playground exposes one device and no events, so it "
+                "cannot demonstrate a withdrawal, an encryption transition, a duplicate or a "
+                "late arrival. Set RING_ACCESS_TOKEN to a Playground token to exercise the "
+                "live path."
             ),
         }
 

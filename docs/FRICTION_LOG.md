@@ -44,10 +44,12 @@ enforcing authentication, rather than being a dead or parked domain. It does
 **not** show that any particular endpoint returns useful data, and it is not a
 substitute for a real authenticated call.
 
-**Impact on the build.** The live Ring path could not be exercised end to end in
-this environment. We therefore built the live adapter from the published
-interface, tested its full HTTP behaviour against a mock transport, and marked
-every Ring capability `DOCUMENTED` rather than `VERIFIED`. This is why the
+**Impact on the build.** The live Ring path could not be exercised end to end
+until a token was available. We therefore built the live adapter from the
+published interface and tested its full HTTP behaviour against a mock transport
+while the gate was closed, and marked every Ring capability `DOCUMENTED` rather
+than `VERIFIED`. Once a token was supplied we ran the real adapter and promoted
+only the three endpoints actually exercised to `VERIFIED`. This is why the
 product ships with a clearly-labelled simulated source: without one, we could
 demonstrate nothing about withdrawal, encryption transitions, duplicates or late
 arrival, because the Playground does not let you manufacture those conditions.
@@ -68,13 +70,15 @@ arrival, because the Playground does not let you manufacture those conditions.
   bogus path. The Playground redirected to an Amazon sign-in, so no token could
   be obtained from this environment without creating an account. When a token was
   supplied, the live calls succeeded: **HTTP 200** on `/v1/devices` with one
-  synthetic device, **HTTP 200** on the history endpoint with zero events.
+  synthetic device, **HTTP 200** on `/v1/devices/{id}/configurations` (which
+  reported an `e2e_encryption` field), and **HTTP 200** on the history endpoint
+  with zero events.
 - **Severity:** High while unblocked-and-unknown; resolved once a token was
   available. The residual limitation is that the Playground cannot produce a
   withdrawal, an encryption transition, a duplicate or a late arrival.
 - **Workaround used:** Built the live adapter from the published interface and
   tested its full HTTP behaviour against `httpx.MockTransport`; when a token
-  arrived, exercised the real host and promoted only the two endpoints actually
+  arrived, exercised the real host and promoted only the three endpoints actually
   called to `VERIFIED`, leaving the rest `DOCUMENTED`. Shipped a clearly-labelled
   simulated source for the conditions the Playground cannot manufacture.
 - **Actionable suggestion:** The Playground is a good sandbox, but it is gated
@@ -399,9 +403,13 @@ before submission. The adapter's no-retry behaviour stands on its own merits.
 - We did **not** purchase anything, provision any AWS resource, or incur any
   cost.
 - We did **not** print, log, commit or transmit any credential.
-- We did **not** perform a live authenticated Ring call, and we have not
-  presented one as having happened anywhere in the product, the UI, the README
-  or this log.
+- We performed **one** live authenticated read-only Ring call, against the
+  Developer Playground, and recorded its actual result (three endpoints, HTTP
+  200; see entry 1 and `docs/SUBMISSION.md` VERIFIED LIVE). We have **not**
+  claimed a live call anywhere it did not happen, and we have not presented any
+  capability as live-verified that the Playground cannot produce — it exposes one
+  device, emits no events, and cannot manufacture a withdrawal, an encryption
+  transition, a duplicate or a late arrival.
 - We did **not** record a Ring session and replay it as if it were live. The
   simulated source is generated from a scenario table, and it says so in every
   payload it produces.

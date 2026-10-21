@@ -6,7 +6,7 @@ Everything a reviewer needs to verify this submission, in one place.
 
 ```bash
 pip install -r requirements.txt
-python -m pytest tests/ -q          # expect 313 passed
+python -m pytest tests/ -q          # expect 332 passed
 python -m uvicorn witness.api:app --port 8000
 ```
 
@@ -53,6 +53,12 @@ admits: a full rewrite verifies cleanly.
 
 We are stating this plainly because the difference matters.
 
+`docs/EVIDENCE_MATRIX.md` is the detailed, per-incident-class companion to this
+section. It records, for every incident class WITNESS handles, the expected
+behaviour, the required evidence, the evidence sources and limitations, the
+false-positive risks, the exact rules and tests that back it, and the
+verification status. Read the two together.
+
 ### VERIFIED — we ran it and saw the result
 
 - The full status taxonomy, over the HTTP API and through the UI.
@@ -66,7 +72,7 @@ We are stating this plainly because the difference matters.
 - Credential redaction: no token appears in any error message or API response.
 - The front end renders every view against real payloads (headless harness,
   `scripts/render_check.js`).
-- 313 automated tests pass.
+- 332 automated tests pass.
 
 ### VERIFIED LIVE — exercised against the real Ring Developer Playground
 
@@ -295,7 +301,7 @@ witness/engine/      Deterministic core: statuses, rules, reconciliation, ledger
 witness/adapters/    Ring (live, read-only) and simulated sources
 witness/api.py       HTTP read model
 web/                 Front end, no build step
-tests/               313 tests
+tests/               332 tests
 scripts/             render_check.js, demo_tamper.py
-docs/                FRICTION_LOG.md, DEMO_SCRIPT.md, SUBMISSION.md
+docs/                FRICTION_LOG.md, DEMO_SCRIPT.md, SUBMISSION.md, EVIDENCE_MATRIX.md
 ```

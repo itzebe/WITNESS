@@ -18,7 +18,7 @@ them as identical. Almost every design decision traces back to that.
 
 ```bash
 pip install -r requirements.txt
-python -m pytest tests/ -q                  # 313 tests, ~4s
+python -m pytest tests/ -q                  # 332 tests, ~4s
 python -m uvicorn witness.api:app --port 8000
 python scripts/demo_tamper.py               # ledger tamper demo
 node scripts/render_check.js <overview.json> <spec.json> [devices.json|-] [verdicts.json]
@@ -146,6 +146,18 @@ Do not reorder this.
   for the run and never written to disk, source, or Git. A fresh run without it
   exits 2 (not configured). Never commit a token; `.gitignore` covers `.env`,
   `*.pem`, `*.key`, `token*.txt`.
+- **The approved secret store is the agent-server on port 60000, not 8001.**
+  `PUT/GET/DELETE /api/settings/secrets` (auth: `X-Session-API-Key: $SESSION_API_KEY`)
+  register secrets that persist, Fernet-encrypted, in `~/.openhands/secrets.json`
+  (mode 600, outside the repo). `GET /api/settings/secrets` lists **names only**;
+  `GET /api/settings/secrets/{name}` returns the value as `text/plain`. Earlier
+  attempts failed because they targeted `localhost:8001` (connection refused —
+  the agent server is on **60000**) and `app.all-hands.dev/api/settings/secrets`
+  (an SPA HTML fallback, not an API). Registration alone is not injection: the
+  value reaches a shell only when the SDK detects the name in a command. To
+  register `RING_ACCESS_TOKEN`, the environment owner must supply a fresh,
+  undisclosed Playground token — do not reuse a disclosed one or paste a token
+  into chat.
 - The Ring Developer Playground is behind an Amazon Developer sign-in
   (`amazon.com/ap/signin`), and its token lasts **30 minutes**. Creating an
   account is prohibited by the task constraints, so tokens must be supplied
@@ -368,3 +380,7 @@ them. `tests/test_docs_honesty.py` pins each correction.
   to claim" section.
 - `docs/SUBMISSION.md` — VERIFIED / DOCUMENTED / UNAVAILABLE / UNVERIFIED
   breakdown and the tests that pin each honesty claim.
+- `docs/EVIDENCE_MATRIX.md` — per-incident-class evidence matrix: expected
+  behaviour, required evidence, sources, limitations, false-positive risks,
+  tests, and verification status. `tests/test_incidents.py` pins one negative
+  guarantee per class; keep the two in step when behaviour changes.

@@ -95,11 +95,17 @@ RING_ACCESS_TOKEN="<token>" python scripts/live_smoke.py
 python -m pytest tests/ -q
 ```
 
-313 tests. The suite covers the status taxonomy, the reconciliation rules, the
+332 tests. The suite covers the status taxonomy, the reconciliation rules, the
 ledger's tamper detection *and its documented limits*, the Ring adapter's full
 HTTP surface against a mock transport, the service pipeline, the HTTP API, and
 the front end (including a headless harness that runs every render function
 against real API payloads).
+
+`tests/test_incidents.py` is organised by incident class — withdrawal,
+encryption transition, duplicate delivery, late arrival, outage, and evidence
+unavailability — and pins the conclusion WITNESS must *not* reach from
+insufficient evidence. `docs/EVIDENCE_MATRIX.md` records the corresponding
+expected behaviour, evidence, and verification status per class.
 
 Notable tests:
 
@@ -111,6 +117,10 @@ Notable tests:
   the product is built on.
 - `test_source_failure_frame_does_not_become_a_withdrawal` — a failed request
   must never be read as a device disappearing.
+- `test_empty_event_history_does_not_produce_a_withdrawal` — an empty history is
+  a successful response, not a device disappearing.
+- `test_current_encryption_value_does_not_assert_a_transition` — WITNESS reports
+  the current reading; it does not claim a change it cannot evidence.
 
 ## Project layout
 
@@ -130,8 +140,8 @@ witness/
   service.py        Application service; wires observations to the ledger
   api.py            FastAPI read model
 web/                Front end (no build step)
-tests/              313 tests
-docs/               Friction log, demo script, submission notes
+tests/              332 tests
+docs/               Friction log, demo script, submission notes, evidence matrix
 ```
 
 ## Honesty boundaries

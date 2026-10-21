@@ -290,7 +290,7 @@ so a judge who stops early still sees the real integration.
 
 Before you press record:
 
-- [ ] `python -m pytest -q` passes (313 tests).
+- [ ] `python -m pytest -q` passes (332 tests).
 - [ ] `node --check web/app.js` passes.
 - [ ] `python scripts/demo_tamper.py` reports five classes detected, one
       limitation stated.
