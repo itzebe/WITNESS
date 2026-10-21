@@ -25,11 +25,21 @@ typed NOT_CONFIGURED failure rather than pretending the source is empty.
 
 VERIFICATION STATUS OF THIS ADAPTER
     The HTTP client, endpoint paths, JSON:API parsing, error classification and
-    redaction are implemented and unit-tested against recorded/fixture
-    payloads. A live authenticated call has NOT been performed by WITNESS,
-    because no Ring credential is available in this environment. The adapter is
-    therefore DOCUMENTED, not VERIFIED. WITNESS reports that distinction in its
-    own UI rather than hiding it.
+    redaction are implemented and unit-tested against fixture payloads.
+
+    A live authenticated call HAS now been performed: on 2026-10-21, with a
+    Playground token supplied through the environment, three endpoints were
+    exercised. ``GET /v1/devices`` returned HTTP 200 carrying one synthetic
+    device; ``GET /v1/devices/{id}/configurations`` returned HTTP 200 with
+    attributes including ``e2e_encryption``; and
+    ``GET /v1/history/devices/{id}/events`` returned HTTP 200 with zero events.
+    Those three capabilities are therefore VERIFIED. Everything else in the Ring
+    interface remains DOCUMENTED: it is published, but WITNESS has not exercised
+    it. WITNESS reports that distinction in its own UI rather than hiding it.
+
+    The Playground cannot produce a withdrawal, an encryption transition, a
+    duplicate delivery or a late arrival, so the behaviour of those conditions
+    is not verified here; they are demonstrated on the labelled simulated source.
 """
 
 from __future__ import annotations
@@ -94,10 +104,10 @@ class RingAdapter(SourceAdapter):
 
     def capabilities(self) -> dict[str, str]:
         return {
-            "device_discovery": "DOCUMENTED",
+            "device_discovery": "VERIFIED",
             "device_status": "DOCUMENTED",
-            "device_configurations": "DOCUMENTED",
-            "event_history": "DOCUMENTED",
+            "device_configurations": "VERIFIED",
+            "event_history": "VERIFIED",
             "user_profile": "DOCUMENTED",
             "motion_webhooks": "UNAVAILABLE",
             "event_classification_via_history": "UNAVAILABLE",

@@ -57,26 +57,35 @@ arrival, because the Playground does not let you manufacture those conditions.
 - **Task attempted:** Reach the Ring Partner API to obtain a credential and make
   one authenticated read-only call.
 - **Steps taken:** Probed `api.amazonvision.com` unauthenticated, comparing a
-  known route against a nonexistent one (table above); then attempted to reach
-  the Playground at `developer.amazon.com/ring/console/playground`.
+  known route against a nonexistent one (table above); attempted to reach the
+  Playground at `developer.amazon.com/ring/console/playground`; then, once a
+  Playground token was supplied, ran the real adapter against the live host
+  (`GET /v1/devices`, `GET /v1/history/devices/{id}/events`).
 - **Expected:** A real route would answer `401` and a nonexistent route `404`,
-  confirming the host is live; the Playground would issue a token.
-- **Actual:** The host behaves as expected — `401` on `/v1/devices`, `404` on a
+  confirming the host is live; the Playground would issue a token; the live
+  adapter would authenticate and parse the response.
+- **Actual:** The host behaved as expected — `401` on `/v1/devices`, `404` on a
   bogus path. The Playground redirected to an Amazon sign-in, so no token could
-  be obtained without creating an account.
-- **Severity:** High — this is the single largest constraint on the project.
-- **Workaround used:** Built the live adapter from the published interface,
-  tested its full HTTP behaviour against `httpx.MockTransport`, marked every
-  Ring capability `DOCUMENTED` rather than `VERIFIED`, and shipped a
-  clearly-labelled simulated source for conditions the Playground cannot
-  manufacture.
+  be obtained from this environment without creating an account. When a token was
+  supplied, the live calls succeeded: **HTTP 200** on `/v1/devices` with one
+  synthetic device, **HTTP 200** on the history endpoint with zero events.
+- **Severity:** High while unblocked-and-unknown; resolved once a token was
+  available. The residual limitation is that the Playground cannot produce a
+  withdrawal, an encryption transition, a duplicate or a late arrival.
+- **Workaround used:** Built the live adapter from the published interface and
+  tested its full HTTP behaviour against `httpx.MockTransport`; when a token
+  arrived, exercised the real host and promoted only the two endpoints actually
+  called to `VERIFIED`, leaving the rest `DOCUMENTED`. Shipped a clearly-labelled
+  simulated source for the conditions the Playground cannot manufacture.
 - **Actionable suggestion:** The Playground is a good sandbox, but it is gated
-  behind an Amazon Developer sign-in. A documented sandbox-token flow that works
-  from a credential-less CI environment — or a hackathon-scoped token — would let
-  automated and unauthenticated builds exercise the live path instead of only the
-  mock transport.
+  behind an Amazon Developer sign-in and its token lasts 30 minutes. A documented
+  sandbox-token flow that works from a credential-less CI environment — or a
+  longer-lived hackathon-scoped token — would let automated builds exercise the
+  live path instead of only the mock transport, and would make a live demo
+  segment reproducible without racing the clock.
 
-**Friction rating: high.** This is the single largest constraint on the project.
+**Friction rating: high, then resolved.** The gate was the single largest
+constraint on the project until a token was supplied.
 
 ---
 

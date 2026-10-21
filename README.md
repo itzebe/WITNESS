@@ -105,8 +105,8 @@ Notable tests:
 
 - `test_full_rewrite_is_not_detectable_by_a_local_verifier` — asserts the
   limitation, so it cannot be quietly overclaimed later.
-- `test_ring_capabilities_do_not_claim_verified_status` — the adapter may not
-  report `VERIFIED` for anything it has not been exercised against.
+- `test_ring_capabilities_claim_only_what_was_actually_exercised` — the adapter
+  may not report `VERIFIED` for anything it has not been exercised against.
 - `test_successful_empty_response_is_a_success_not_a_failure` — the distinction
   the product is built on.
 - `test_source_failure_frame_does_not_become_a_withdrawal` — a failed request
@@ -140,8 +140,13 @@ These are enforced by tests, not just by intention.
 
 - Simulated data is labelled `SIMULATED` in every payload, in the timeline, and
   in the UI. The simulated adapter never claims to be Ring.
-- A live authenticated Ring call has **not** been performed in this environment.
-  Ring capabilities are reported as `DOCUMENTED`, never `VERIFIED`.
+- A live authenticated Ring call **has** been performed against the Ring
+  Developer Playground: `GET /v1/devices`, `GET /v1/devices/{id}/configurations`
+  and `GET /v1/history/devices/{id}/events` all returned HTTP 200. Those three
+  capabilities are reported `VERIFIED`; everything else in the Ring interface
+  stays `DOCUMENTED`. WITNESS never reports `VERIFIED` for anything it has not
+  been exercised against, and the Playground cannot produce a withdrawal, an
+  encryption transition, a duplicate or a late arrival.
 - The ledger is described as **tamper-evident**, never immutable. A privileged
   operator can rewrite the whole chain; the UI says so.
 - WITNESS makes no emergency, medical, safety or reliability claims. It reports

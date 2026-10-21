@@ -68,10 +68,49 @@ We are stating this plainly because the difference matters.
   `scripts/render_check.js`).
 - 313 automated tests pass.
 
+### VERIFIED LIVE — exercised against the real Ring Developer Playground
+
+On 2026-10-21, with a short-lived Playground token (scope `ava.v1:read`, issuer
+`RingOauthService-prod:us-east-1:ffdde79`) supplied through the environment, the
+real `RingAdapter` made authenticated read-only calls to
+`https://api.amazonvision.com`:
+
+- `GET /v1/devices` → **HTTP 200**, `content-type: application/json`, server
+  `envoy`. The body was a JSON:API envelope with one device resource whose
+  `attributes` contained `name: "Playground Device"` and an `image_url` under
+  `app-content.ring.com`. The adapter parsed it correctly: one device, labelled
+  `Playground Device`.
+- `GET /v1/devices/{id}/configurations` → **HTTP 200**, returning attributes
+  `image_enhancements`, `audio`, `motion_detection` and **`e2e_encryption`**.
+  The presence of `e2e_encryption` in the live configuration resource is the
+  field WITNESS reads to distinguish an encryption-related absence from an
+  outage.
+- `GET /v1/history/devices/{id}/events` → **HTTP 200** with zero events. The
+  adapter reports that as a successful, empty history — not a failure, and not
+  evidence that anything was withdrawn.
+- `scripts/live_smoke.py` exits **0** (`ACCESS GATE: OPEN`), reproducibly.
+- The full API path was also exercised through the application itself:
+  `POST /api/observe/ring` returned an observation with `inventory_ok: true`,
+  `configurations_ok: true`, `history_ok: true`, one device and zero events, and
+  the response contained no token.
+
+**What this does and does not establish.** It establishes that the live adapter
+authenticates, calls the real host, and correctly parses the real response
+envelope for device discovery, configurations and history. It does **not**
+establish the behaviour of any condition the Playground cannot produce: there was
+one synthetic device, no events, and no way to induce a withdrawal, an encryption
+transition, a duplicate or a late arrival. Those remain demonstrated on the
+labelled simulated source, which is exactly the split the hackathon organizer
+sanctioned.
+
+Note also that the Playground's device resource carried **no** `device_type` or
+`kind` field, only `name` and `image_url`. WITNESS reports the kind as unknown
+rather than guessing — an honest "we could not determine this", which is the
+behaviour the product exists to demonstrate.
+
 ### DOCUMENTED — in the published interface, not exercised by us
 
-- Ring device discovery, device status, device configurations, event history,
-  user profile, live video.
+- Ring device status, device configurations, user profile, live video.
 - End-to-end encryption removing a device from the API inventory.
 - Webhook delivery carrying a classification that event history does not.
 
@@ -171,13 +210,14 @@ rather than buried:
   unauthenticated request to the Playground URL redirects to
   `amazon.com/ap/signin`. Reaching it requires an account, and the task
   constraints prohibit creating one.
-- **We have not run the live path against the Playground in this environment,
-  because we hold no Amazon Developer credentials here.** So the video as
-  currently scripted demonstrates WITNESS's own scenario, which is not the same
-  thing as the Ring simulator.
+- **The live path has now been exercised against the real Playground** (see
+  VERIFIED LIVE above): authenticated `GET /v1/devices` returned HTTP 200 with a
+  real synthetic device. What remains unexercised is any condition the Playground
+  cannot produce — withdrawal, encryption transition, duplicate, late arrival.
+  Those are shown on the labelled simulated source.
 
-**The organizer has said explicitly how the two sources may be combined.** On
-the hackathon's Devpost forum, Emerson Sklar (Amazon Ring developer advocate)
+**How the two sources are combined is settled by the organizer.** On the
+hackathon's Devpost forum, Emerson Sklar (Amazon Ring developer advocate)
 answered a question about the simulator:
 
 > "1) Yes. The simulator is the Ring Developer Playground. Its Package, Vehicle
@@ -198,15 +238,9 @@ The organizer permits showing them from our own source **provided we label which
 is which** — which WITNESS does in every payload, every timeline entry and on
 screen.
 
-**This must still be resolved before submission.** The honest options are, in
-order of preference: (1) obtain a free Ring developer account, generate a
-Playground token, and record the live segment against the real simulator,
-labelling the local segment as ours; or (2) if that is impossible, record the
-local segment only and state in the submission text that the Ring simulator path
-was not exercised. Option 2 is a materially weaker submission. See
-`docs/FRICTION_LOG.md` entry 1.
-
-`scripts/live_smoke.py` is the gate for option (1): given a Playground token in
+The remaining operational requirement is that the video contain a segment
+showing the live Playground call, so the Ring API is visibly being used.
+`scripts/live_smoke.py` is the gate: given a Playground token in
 `RING_ACCESS_TOKEN`, it runs one read-only pass through the real adapter and
 reports exactly what the call established. Playground tokens expire after 30
 minutes, so record the live segment in one sitting.
@@ -233,7 +267,7 @@ These are not aspirations; they are asserted in the suite.
 
 | Claim | Test |
 |---|---|
-| The Ring adapter never reports `VERIFIED` | `test_ring_capabilities_do_not_claim_verified_status` |
+| Only exercised endpoints are reported `VERIFIED` | `test_ring_capabilities_claim_only_what_was_actually_exercised` |
 | Simulated data is always labelled simulated | `test_simulated_source_is_labelled_simulated`, `test_simulated_capabilities_are_all_labelled_simulated` |
 | A failed request is never read as a withdrawal | `test_source_failure_frame_does_not_become_a_withdrawal` |
 | An empty success is not a failure | `test_successful_empty_response_is_a_success_not_a_failure` |

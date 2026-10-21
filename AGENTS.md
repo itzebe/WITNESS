@@ -88,8 +88,9 @@ Do not reorder this.
 6. **No credential ever appears in output.** `token_fingerprint()` is 12 chars
    of a digest. Error messages pass through `_redact()`.
 
-7. **Capabilities are `DOCUMENTED`, never `VERIFIED`, unless exercised live.**
-   Pinned by `test_ring_capabilities_do_not_claim_verified_status`.
+7. **Capabilities are `DOCUMENTED` unless exercised live; only the three
+   exercised endpoints are `VERIFIED`.** Pinned by
+   `test_ring_capabilities_claim_only_what_was_actually_exercised`.
 
 8. **No safety, medical, or emergency claims.** WITNESS reports evidence
    quality. It does not tell anyone they are safe.
@@ -129,15 +130,32 @@ Do not reorder this.
 
 ## Environment constraints
 
-- No Amazon Developer credentials in this environment. The live Ring path is
-  implemented and mock-tested but has **not** been exercised authenticated.
-  Do not claim otherwise in any artifact.
-- The Ring Developer Playground — Ring's official simulator and the hackathon's
-  accepted demo route — is behind an Amazon Developer sign-in
-  (`amazon.com/ap/signin`). Creating an account is prohibited by the task
-  constraints, so the live path stays UNVERIFIED here. If a token is ever
-  supplied, `scripts/live_smoke.py` is the gate: one read-only pass through the
-  real adapter, no token printed.
+- **The live Ring path IS now verified.** On 2026-10-21 a Playground token
+  (scope `ava.v1:read`) supplied through the environment produced, through the
+  real `RingAdapter`, **three** HTTP 200 responses: `GET /v1/devices` (one
+  synthetic device, `Playground Device`), `GET /v1/devices/{id}/configurations`
+  (attributes `image_enhancements`, `audio`, `motion_detection`, `e2e_encryption`)
+  and `GET /v1/history/devices/{id}/events` (zero events). `scripts/live_smoke.py`
+  exits **0** (`ACCESS GATE: OPEN`), and `POST /api/observe/ring` returned
+  `inventory_ok/configurations_ok/history_ok` all true. `device_discovery`,
+  `device_configurations` and `event_history` are therefore reported `VERIFIED`;
+  every other Ring capability stays `DOCUMENTED`. Pinned by
+  `test_ring_capabilities_claim_only_what_was_actually_exercised`.
+- **No credential is registered in the secret configuration.** `RING_ACCESS_TOKEN`
+  is absent from the environment by default; the token above was passed inline
+  for the run and never written to disk, source, or Git. A fresh run without it
+  exits 2 (not configured). Never commit a token; `.gitignore` covers `.env`,
+  `*.pem`, `*.key`, `token*.txt`.
+- The Ring Developer Playground is behind an Amazon Developer sign-in
+  (`amazon.com/ap/signin`), and its token lasts **30 minutes**. Creating an
+  account is prohibited by the task constraints, so tokens must be supplied
+  externally. `scripts/live_smoke.py` is the gate: one read-only pass through the
+  real adapter, no token printed (fingerprint only).
+- The Playground exposes exactly **three** simulated streams (Package, Vehicle,
+  Motion). It cannot produce a withdrawal, an encryption transition, a duplicate
+  or a late arrival — those stay on the labelled simulated source.
+- The Playground's device resource carries only `name` and `image_url`; it has
+  **no** `device_type`/`kind` field, so WITNESS reports the kind as unknown.
 - `gh` is not authenticated.
 - `api.amazonvision.com` returns 401 for real routes and 404 for fake ones —
   use this to confirm routing without credentials.

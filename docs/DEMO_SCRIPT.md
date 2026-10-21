@@ -223,6 +223,12 @@ Use the wording that matches what you actually recorded:
   Partner API — read-only, bearer token, real HTTP. We have no Amazon Developer
   credentials in this environment, so it has not made an authenticated call, and
   WITNESS says so rather than pretending otherwise."
+- **What we have actually verified:** with a Playground token supplied through
+  the environment, the real adapter returned **HTTP 200** from
+  `GET /v1/devices` with one synthetic device, and **HTTP 200** from the history
+  endpoint with zero events. That is the whole of what is verified live. It does
+  not include a withdrawal, an encryption transition, a duplicate or a late
+  arrival — the Playground cannot produce those.
 
 **Say:** "Set a token and the same code path runs live. Without one, it refuses
 to contact Ring and reports the source as unconfigured — rather than showing you

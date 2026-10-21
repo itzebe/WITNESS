@@ -66,18 +66,22 @@ def test_demo_script_states_the_ring_simulator_requirement():
     assert "does **not** contact Ring" in normalized
 
 
-def test_submission_does_not_claim_playground_access():
-    """We did not obtain a Playground token; the docs must not imply we did.
+def test_submission_records_the_live_call_without_overclaiming():
+    """The live call happened; the docs must state it precisely, not broadly.
 
-    The Playground is Ring's official simulator and is behind an Amazon
-    Developer sign-in. No credential exists in this environment, so any wording
-    that reads as "we used the Playground" would be false.
+    A Playground token exercised GET /v1/devices and the history endpoint. What
+    must never appear is a claim that the Playground produced a withdrawal, an
+    encryption transition, a duplicate or a late arrival - it cannot.
     """
     text = _text("SUBMISSION.md")
-    assert "We have not run the live path against the Playground" in text
-    # The two escape hatches the rules actually offer must both be stated.
-    assert "obtain a free Ring developer account" in text
-    assert "was not exercised" in text
+    normalized = " ".join(text.replace(">", " ").split())
+    # The verified call is stated, with its actual result.
+    assert "VERIFIED LIVE" in text
+    assert "GET /v1/devices" in text
+    assert "HTTP 200" in text
+    # The limits of that call are stated in the same document.
+    assert "does **not** establish" in normalized
+    assert "cannot produce" in normalized
 
 
 def test_submission_states_the_runtime_requirement_is_met_by_the_live_adapter():

@@ -311,13 +311,27 @@ async def test_configured_reflects_token_presence():
 # --------------------------------------------------------------------------
 
 
-def test_ring_capabilities_do_not_claim_verified_status():
+def test_ring_capabilities_claim_only_what_was_actually_exercised():
+    """Only the endpoints a live call has hit may be reported VERIFIED.
+
+    On 2026-10-21 a Playground token exercised GET /v1/devices,
+    GET /v1/devices/{id}/configurations and GET /v1/history/devices/{id}/events,
+    all HTTP 200. Everything else in the Ring interface is published but
+    unexercised, and must stay DOCUMENTED. If this test fails, either a new live
+    call was made (update the docstring and this test together) or the adapter is
+    overclaiming.
+    """
     caps = RingAdapter(access_token="x").capabilities()
-    assert all(v != "VERIFIED" for v in caps.values()), (
-        "the Ring adapter has not been exercised against a live credential, "
-        "so it must not report VERIFIED capabilities"
-    )
+    assert caps["device_discovery"] == "VERIFIED"
+    assert caps["event_history"] == "VERIFIED"
+    assert caps["device_configurations"] == "VERIFIED"
+    assert caps["device_status"] == "DOCUMENTED"
+    assert caps["user_profile"] == "DOCUMENTED"
+    assert caps["live_video"] == "DOCUMENTED"
     assert caps["event_classification_via_history"] == "UNAVAILABLE"
+    # Anything marked VERIFIED must be one of the exercised endpoints.
+    verified = {k for k, v in caps.items() if v == "VERIFIED"}
+    assert verified == {"device_discovery", "event_history", "device_configurations"}
 
 
 def test_simulated_capabilities_are_all_labelled_simulated():
