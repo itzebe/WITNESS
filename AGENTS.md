@@ -18,7 +18,7 @@ them as identical. Almost every design decision traces back to that.
 
 ```bash
 pip install -r requirements.txt
-python -m pytest tests/ -q                  # 332 tests, ~4s
+python -m pytest tests/ -q                  # 337 tests, ~4s
 python -m uvicorn witness.api:app --port 8000
 python scripts/demo_tamper.py               # ledger tamper demo
 node scripts/render_check.js <overview.json> <spec.json> [devices.json|-] [verdicts.json]
@@ -141,17 +141,16 @@ Do not reorder this.
   `device_configurations` and `event_history` are therefore reported `VERIFIED`;
   every other Ring capability stays `DOCUMENTED`. Pinned by
   `test_ring_capabilities_claim_only_what_was_actually_exercised`.
-- **`RING_ACCESS_TOKEN` is registered in the approved settings secret store**
+- **`RING_ACCESS_TOKEN` was registered in the approved settings secret store**
   (agent-server `PUT /api/settings/secrets`), persisted Fernet-encrypted in
   `~/.openhands/secrets.json` (mode 600, outside the repo) and never written to
-  source, Git, or the demo transcript. It is **not** injected into an arbitrary
-  shell automatically — read it over the API and pass it through the child
-  environment (see the injection note below). A fresh run without it exits 2
-  (not configured). Never commit a token; `.gitignore` covers `.env`, `*.pem`,
-  `*.key`, `token*.txt`, `*.db`.
-  **Playground tokens expire ~30 minutes**, so re-register before any live demo
-  and confirm the gate with `python scripts/live_smoke.py` immediately before
-  recording.
+  source, Git, or the demo transcript. **The token registered on 2026-10-21 has
+  since expired** (~30-minute lifetime), so no valid Ring credential is present
+  now and the live path cannot be re-run without a fresh one. Registration is
+  not injection into an arbitrary shell — read the value over the API and pass
+  it through the child environment (see the injection note below). A fresh run
+  without a token exits 2 (not configured). Never commit a token; `.gitignore`
+  covers `.env`, `*.pem`, `*.key`, `token*.txt`, `*.db`.
 - **The approved secret store is the agent-server on port 60000, not 8001.**
   `PUT/GET/DELETE /api/settings/secrets` (auth: `X-Session-API-Key: $SESSION_API_KEY`)
   register secrets that persist, Fernet-encrypted, in `~/.openhands/secrets.json`
@@ -159,11 +158,10 @@ Do not reorder this.
   `GET /api/settings/secrets/{name}` returns the value as `text/plain`. Earlier
   attempts failed because they targeted `localhost:8001` (connection refused —
   the agent server is on **60000**) and `app.all-hands.dev/api/settings/secrets`
-  (an SPA HTML fallback, not an API). Registration alone is not injection: the
-  value reaches a shell only when the SDK detects the name in a command. To
-  register `RING_ACCESS_TOKEN`, the environment owner must supply a fresh,
-  undisclosed Playground token — do not reuse a disclosed one or paste a token
-  into chat.
+  (an SPA HTML fallback, not an API). Registration alone is not injection — see
+  the next bullet for what actually works. To register `RING_ACCESS_TOKEN`, the
+  environment owner must supply a fresh, undisclosed Playground token — do not
+  reuse a disclosed one or paste a token into chat.
 - **Registration does not inject; fetch-then-pass does.** Verified by probe: a
   name registered through `/api/settings/secrets` is *not* present in a later
   shell even when the name appears in the command text. Conversation-scoped

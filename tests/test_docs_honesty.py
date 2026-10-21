@@ -163,8 +163,68 @@ def test_demo_script_records_the_thirty_minute_token_expiry():
     assert "valid for 30 minutes" in text
 
 
+def test_demo_script_does_not_claim_no_credentials_exist():
+    """The script must not say we have no credentials, or no call was made.
+
+    A token was supplied on 2026-10-21 and three endpoints answered HTTP 200.
+    That a *fresh* token is needed to re-record is a different statement from
+    "we have no credentials" and "it has not made an authenticated call".
+    """
+    text = _text("DEMO_SCRIPT.md")
+    assert "We have no Amazon Developer credentials in this environment" not in text
+    assert "so it has not made an authenticated call" not in text
+    # The accurate replacement must be present.
+    assert "short-lived and has expired" in text
+
+
 def test_submission_quotes_the_organizer_on_combining_sources():
     """The hybrid approach is only defensible with the organizer's own words."""
     normalized = " ".join(_text("SUBMISSION.md").replace(">", " ").split())
     assert "The simulator is the Ring Developer Playground" in normalized
     assert "combining them is fine" in normalized
+
+
+def test_submission_does_not_deny_the_live_call_it_records():
+    """The same document cannot both record a live call and deny one happened.
+
+    A later edit left the UNVERIFIED section saying no credentials were
+    available and "that is not a real call", directly contradicting the
+    VERIFIED LIVE section above it. The dated verification stands; only the
+    credential's current validity is in question.
+    """
+    text = _text("SUBMISSION.md")
+    assert "No Amazon Developer credentials were" not in text
+    assert "that is not a real call and we do not present it as one" not in text
+    # The correction must be present, not just the removal.
+    assert "has since **expired**" in text
+
+
+def test_submission_separates_past_live_evidence_from_current_credentials():
+    """Historical live results must not be read as present credential access."""
+    normalized = " ".join(_text("SUBMISSION.md").split())
+    assert "Credential availability (current state)" in normalized
+    assert "no valid Ring credential is configured in this environment now" in normalized
+    assert "exits 2" in normalized
+
+
+def test_submission_documented_list_excludes_exercised_endpoints():
+    """Device configurations was exercised live, so it is not DOCUMENTED.
+
+    Listing it under "not exercised by us" would contradict the VERIFIED LIVE
+    section that records its HTTP 200.
+    """
+    text = _text("SUBMISSION.md")
+    documented = text.split("### DOCUMENTED", 1)[1].split("### UNAVAILABLE", 1)[0]
+    assert "device configurations" not in documented.lower()
+
+
+def test_evidence_matrix_marks_the_live_verification_as_dated():
+    """The matrix must not read as if live access is currently reproducible.
+
+    The live evidence used a short-lived token that has since expired. The
+    matrix records the result as dated so a reader does not expect to re-run it
+    without a fresh credential.
+    """
+    text = _text("EVIDENCE_MATRIX.md")
+    assert "verification is **dated**" in text
+    assert "has since expired" in text

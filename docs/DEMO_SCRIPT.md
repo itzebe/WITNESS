@@ -1,7 +1,9 @@
 # Three-minute demo script
 
 Target length: **2 minutes 45 seconds**, leaving margin. Every claim in this
-script is something the product actually does and can be re-run live.
+script is something the product actually does. The Segment B scenario re-runs
+deterministically offline; Segment A's live calls were verified on 2026-10-21
+and re-run requires a fresh Playground token (see the compliance gate below).
 
 > **Compliance gate — read before recording.** The Ring track rules say: *"Any
 > Ring API, SDK, simulator, or device listed in Ring's developer documentation is
@@ -43,10 +45,12 @@ script is something the product actually does and can be re-run live.
 > obtain a free account, generate a one-click token, and run with
 > `RING_ACCESS_TOKEN` set (see README, and `scripts/live_smoke.py` to confirm the
 > token works before recording). **Playground tokens are valid for 30 minutes**,
-> so record Segment A in one sitting or regenerate the token. If no Playground
-> access can be obtained, record Segment B only and state in the video and the
-> submission text that the Ring simulator path was not exercised. See
-> `docs/SUBMISSION.md`.
+> so record Segment A in one sitting or regenerate the token. If no fresh
+> Playground token is available at record time, record Segment B only and state
+> in the video and the submission text that the live segment was not recorded in
+> this session. Do not imply the live path has never been exercised: it was
+> verified on 2026-10-21 (see `docs/SUBMISSION.md`, VERIFIED LIVE), and that
+> result stands even though the token used then has since expired.
 
 Setup before recording:
 
@@ -91,9 +95,11 @@ a duplicate or a late arrival. It cannot. If it returns nothing, show that the
 source reports a successful empty response and say so — that is the product
 working, not a failure.
 
-**If the token cannot be obtained:** skip Segment A entirely, record Segment B
-only, and state on camera and in the submission text that the Ring Playground
-path was not exercised. Do not imply otherwise.
+**If a fresh token cannot be obtained:** skip Segment A entirely and record
+Segment B only. Say on camera and in the submission text that the live segment
+was not recorded in this session because the short-lived Playground token had
+expired — and point to the dated verification in `docs/SUBMISSION.md`. Do not
+imply the live path was never exercised; it was, on 2026-10-21.
 
 ---
 
@@ -217,15 +223,21 @@ Use the wording that matches what you actually recorded:
 
 - **If you recorded Segment A live:** "You saw this make a real authenticated
   call at the start. It is read-only, bearer token, real HTTP — no write scope.
-  Ring's capabilities are reported as 'Documented' rather than 'Verified',
-  because 'Verified' is reserved for behaviour we have exercised ourselves."
-- **If you did not (no Playground access):** "This is a real client for the Ring
-  Partner API — read-only, bearer token, real HTTP. We have no Amazon Developer
-  credentials in this environment, so it has not made an authenticated call, and
-  WITNESS says so rather than pretending otherwise."
+  The three endpoints we actually called — device discovery, configurations and
+  event history — are reported as 'Verified', because 'Verified' is reserved for
+  behaviour we have exercised ourselves. Everything else in the Ring interface
+  stays 'Documented'."
+- **If you did not record Segment A** (no fresh Playground token at record
+  time): "This is a real client for the Ring Partner API — read-only, bearer
+  token, real HTTP. We have no valid Ring credential in this environment right
+  now — the Playground token is short-lived and has expired — so the live path
+  cannot be re-run at this moment, and WITNESS says so rather than pretending
+  otherwise. We did exercise it earlier; that result is recorded in
+  `docs/SUBMISSION.md`."
 - **What we have actually verified:** with a Playground token supplied through
   the environment, the real adapter returned **HTTP 200** from
-  `GET /v1/devices` with one synthetic device, and **HTTP 200** from the history
+  `GET /v1/devices` with one synthetic device, **HTTP 200** from
+  `GET /v1/devices/{id}/configurations`, and **HTTP 200** from the history
   endpoint with zero events. That is the whole of what is verified live. It does
   not include a withdrawal, an encryption transition, a duplicate or a late
   arrival — the Playground cannot produce those.
@@ -260,7 +272,8 @@ is the difference between a notification and something you can rely on."
 ## What not to do
 
 - Do not claim a live Ring call was made **unless Segment A actually shows one**.
-  If it was not recorded, say so.
+  If it was not recorded in this session, say so — but do not deny the dated
+  verification in `docs/SUBMISSION.md`; state that the earlier token expired.
 - Do not present the local segment as the Ring Playground. Say which segment is
   which.
 - Do not claim the ledger is immutable or tamper-proof. It is tamper-evident.
@@ -290,7 +303,7 @@ so a judge who stops early still sees the real integration.
 
 Before you press record:
 
-- [ ] `python -m pytest -q` passes (332 tests).
+- [ ] `python -m pytest -q` passes (337 tests).
 - [ ] `node --check web/app.js` passes.
 - [ ] `python scripts/demo_tamper.py` reports five classes detected, one
       limitation stated.

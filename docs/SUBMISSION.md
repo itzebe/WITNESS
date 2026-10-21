@@ -6,7 +6,7 @@ Everything a reviewer needs to verify this submission, in one place.
 
 ```bash
 pip install -r requirements.txt
-python -m pytest tests/ -q          # expect 332 passed
+python -m pytest tests/ -q          # expect 337 passed
 python -m uvicorn witness.api:app --port 8000
 ```
 
@@ -72,7 +72,7 @@ verification status. Read the two together.
 - Credential redaction: no token appears in any error message or API response.
 - The front end renders every view against real payloads (headless harness,
   `scripts/render_check.js`).
-- 332 automated tests pass.
+- 337 automated tests pass.
 
 ### VERIFIED LIVE — exercised against the real Ring Developer Playground
 
@@ -116,9 +116,12 @@ behaviour the product exists to demonstrate.
 
 ### DOCUMENTED — in the published interface, not exercised by us
 
-- Ring device status, device configurations, user profile, live video.
+- Ring device **status** and **user profile** endpoints, and live video.
 - End-to-end encryption removing a device from the API inventory.
 - Webhook delivery carrying a classification that event history does not.
+
+(Device **discovery**, **configurations** and **event history** are not in this
+list: those three endpoints were exercised live and are `VERIFIED` above.)
 
 ### UNAVAILABLE
 
@@ -128,14 +131,31 @@ behaviour the product exists to demonstrate.
 
 ### UNVERIFIED — we could not confirm it
 
-- **A live authenticated Ring API call.** No Amazon Developer credentials were
-  available in this environment. We probed the host unauthenticated to confirm
-  it is live and auth-guarded (`/v1/devices` → 401, nonexistent path → 404), but
-  that is not a real call and we do not present it as one.
+- **Behaviour of a real (non-Playground) Ring account.** Only the Playground's
+  single synthetic device has been observed. Whether real devices populate a
+  `device_type`/`kind` field and an online flag, and whether a real account can
+  produce a withdrawal, an encryption transition, a duplicate delivery or a late
+  arrival, is unconfirmed. The Playground cannot manufacture those conditions.
+- **Live rate-limit and server-error behaviour.** `429` and `5xx` responses are
+  classified and tested against `httpx.MockTransport`, but have not been observed
+  from the live service.
 
-Two entries that were previously listed here are now **DOCUMENTED**, not
-unverified, because we found them in Ring's own reference after the first draft
-of this file:
+### Credential availability (current state)
+
+The live verification recorded above used a **short-lived** Ring Developer
+Playground token, valid for about 30 minutes. That token has since **expired**,
+and no valid Ring credential is configured in this environment now. The live
+path therefore cannot be re-run here without a fresh token from the Playground.
+
+This does not weaken what was verified on 2026-10-21 — that result is dated and
+stands — but any future live run, including the demo's Segment A, requires a
+newly generated token. A run with no token configured fails closed: the source
+reports itself unconfigured rather than as an empty device list, and
+`scripts/live_smoke.py` exits 2.
+
+Two entries that were previously listed as UNVERIFIED are now **DOCUMENTED**,
+because we found them in Ring's own reference after the first draft of this
+file:
 
 - **Rate limits and retry behaviour.** Published: 100 requests/second per
   partner `client_id`, with `Retry-After` and `X-RateLimit-*` headers, and a
@@ -289,7 +309,9 @@ These are not aspirations; they are asserted in the suite.
 - It does not make anyone safer, and it does not say so.
 - It does not tell you whether a person is present, or what an event was.
 - It does not claim its ledger is immutable.
-- It does not claim a live Ring call has been made in this environment.
+- It does not claim a live Ring call happened in *this* environment now: the
+  token used for the dated verification above has expired, so no live call is
+  currently possible without a fresh credential.
 
 It reports the quality, completeness and limitations of the evidence available
 to it. Missing evidence is not proof that nothing happened.
@@ -301,7 +323,7 @@ witness/engine/      Deterministic core: statuses, rules, reconciliation, ledger
 witness/adapters/    Ring (live, read-only) and simulated sources
 witness/api.py       HTTP read model
 web/                 Front end, no build step
-tests/               332 tests
+tests/               337 tests
 scripts/             render_check.js, demo_tamper.py
 docs/                FRICTION_LOG.md, DEMO_SCRIPT.md, SUBMISSION.md, EVIDENCE_MATRIX.md
 ```

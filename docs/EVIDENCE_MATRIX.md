@@ -38,6 +38,12 @@ device, emits no events, and cannot produce a withdrawal, an encryption
 transition, a duplicate delivery, a late arrival, or an outage. Every row below
 for those classes is therefore **VERIFIED BY SIMULATION** at best.
 
+The verification is **dated**. It used a short-lived Playground token (~30
+minutes), which has since expired, so no valid Ring credential is present now
+and the live path cannot be re-run without a fresh one. The result above stands;
+its reproducibility does not depend on the credential still existing.
+`docs/SUBMISSION.md` records the current credential state.
+
 ## Thresholds (the whole of the policy)
 
 From `witness/engine/rules.py`, `Policy`:
