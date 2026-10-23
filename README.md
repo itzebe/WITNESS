@@ -10,6 +10,12 @@ The product exists because of one specific failure mode: **an empty result and a
 failed request are not the same thing**, and most connected-home tooling treats
 them as if they were.
 
+WITNESS is not a chatbot and not an ordinary event log. There is no model
+anywhere in the reconciliation path: the same observations always produce the
+same assessment, every conclusion carries the rule that produced it and the
+evidence it rests on, and every question the evidence cannot answer is listed as
+open rather than filled in.
+
 ---
 
 ## The problem
@@ -55,7 +61,41 @@ observations always produce the same assessment. You can re-run it and check.
 hash-linked ledger. Modification, insertion, deletion and reordering are
 detectable. The limits of that guarantee are stated in the UI, not buried.
 
+## How it works
+
+One observation is one read-only pass. The order of the steps is fixed, and it
+is the reason every conclusion in the ledger can be traced back to stored
+evidence.
+
+1. **Fetch.** `RingAdapter` calls the Ring Partner API over real HTTP, read-only,
+   with a bearer token (`witness/adapters/ring.py`). With no token configured it
+   returns a typed `NOT_CONFIGURED` failure and contacts nothing at all.
+2. **Validate and normalise at the boundary.** Each payload is parsed by a
+   boundary function that returns `(parsed, problem)` and refuses a shape it
+   cannot read rather than guessing — `_extract_data_list`
+   (`witness/adapters/ring.py`) and `normalise_device_list`
+   (`witness/adapters/base.py`) for inventory, `normalise_event_list`
+   (`witness/adapters/base.py`) for history. An unreadable payload fails the
+   request; it is never silently read as an empty one.
+3. **Persist the observation first.** `WitnessService.observe` writes the
+   observation to SQLite *before* any conclusion is drawn
+   (`witness/service.py`).
+4. **Reconcile deterministically.** `reconcile()` replays the stored observation
+   history through pure rule functions — no I/O, no model call — producing an
+   assessment for each device, each event and each open question
+   (`witness/engine/reconcile.py`, `witness/engine/rules.py`).
+5. **Append to the evidence ledger.** The observation itself, then every
+   assessment, is appended as a hash-linked record citing the rule id and the
+   observation it rests on (`witness/engine/ledger.py`).
+6. **Serve.** `witness/api.py` is a read model with no logic of its own. The
+   front end renders the taxonomy it fetches from `/api/status-spec` rather than
+   hardcoding status meanings in the client (`web/app.js`).
+
 ## Quick start
+
+Requires **Python 3.10 or newer** — the pinned dependencies declare
+`requires_python >= 3.10`. **Node.js** is optional and only needed for the
+front-end checks (see [Tests](#tests)).
 
 ```bash
 pip install -r requirements.txt
@@ -81,6 +121,9 @@ Without a token, WITNESS **does not contact Ring at all**. It reports the source
 as unconfigured rather than as an empty device list — which is the product
 working as designed.
 
+Never commit the token or paste it into a document: it is a credential. Pass it
+through the environment only, as above.
+
 To confirm a token works before recording a demo, run the access-gate script. It
 makes one read-only pass through the real adapter and reports exactly what the
 call established, without printing the token:
@@ -91,8 +134,11 @@ RING_ACCESS_TOKEN="<token>" python scripts/live_smoke.py
 
 ## Tests
 
+Requires **no Ring credential and no network**. The Ring adapter is exercised
+against `httpx.MockTransport`, so the suite runs offline.
+
 ```bash
-python -m pytest tests/ -q
+python -m pytest tests/ -q          # canonical full-suite command
 ```
 
 368 tests. The suite covers the status taxonomy, the reconciliation rules, the
@@ -100,6 +146,17 @@ ledger's tamper detection *and its documented limits*, the Ring adapter's full
 HTTP surface against a mock transport, the service pipeline, the HTTP API, and
 the front end (including a headless harness that runs every render function
 against real API payloads).
+
+Three tests are skipped when Node.js is not installed — they shell out to
+`node --check` and the headless render harness. Node.js is optional; without it
+you lose only those front-end checks:
+
+```bash
+node --check web/app.js             # a syntax error here blanks the whole UI
+```
+
+The count above is the last recorded full-suite result and has not been re-run
+in every environment; `python -m pytest tests/ -q` prints the current number.
 
 `tests/test_incidents.py` is organised by incident class — withdrawal,
 encryption transition, duplicate delivery, late arrival, outage, and evidence
@@ -138,6 +195,56 @@ Notable tests:
 - `test_on_time_event_redelivered_later_is_not_reported_late` — lateness is
   measured from the first retrieval, not the most recent re-delivery.
 
+## The tamper demonstration
+
+`scripts/demo_tamper.py` is the executable form of the Integrity tab's claim. It
+is self-contained, offline, and needs only the Python standard library — it
+imports the engine directly, touches no database, makes no network call and
+reads no credential.
+
+```bash
+python scripts/demo_tamper.py
+```
+
+It builds a five-record hash chain, then tampers with it five distinct ways —
+payload modification, record deletion, reordering, `prev_hash` breakage and
+status laundering — and shows each is detected and named with the first bad
+index. It then demonstrates the limitation WITNESS admits: a freshly generated,
+internally consistent chain verifies `valid=True`, because a local verifier
+cannot distinguish a rewrite from the original.
+
+**What it proves:** that the hash chain detects modification, insertion,
+deletion and reordering, and that WITNESS describes that guarantee as
+*tamper-evident*, never immutable.
+
+**What it does not prove:** that the ledger was never rewritten as a whole, and
+nothing about live Ring data — the chain is built from a fixed synthetic
+scenario.
+
+## Documentation
+
+The README is the entry point; the depth lives in `docs/`. Recommended reading
+order:
+
+1. **This README** — what WITNESS is, how it works, how to run it.
+2. **[docs/SUBMISSION.md](docs/SUBMISSION.md)** — the submission overview: what
+   to run, how to reproduce the core demonstration in 60 seconds, and the
+   VERIFIED / VERIFIED LIVE / DOCUMENTED / UNAVAILABLE / UNVERIFIED breakdown of
+   every claim.
+3. **[docs/EVIDENCE_MATRIX.md](docs/EVIDENCE_MATRIX.md)** — the per-incident-class
+   companion: for each incident class, the expected behaviour, the required
+   evidence, the false-positive risks, the exact rules and tests that back it,
+   and the verification status.
+4. **[docs/DEMO_SCRIPT.md](docs/DEMO_SCRIPT.md)** — the timed three-minute demo
+   script, including a two-segment split that labels which footage comes from
+   Ring and which is WITNESS's own, and a "what not to claim" section.
+5. **[docs/FRICTION_LOG.md](docs/FRICTION_LOG.md)** — the honest build log: what
+   we hit on the Ring Partner API, each entry in the six-field friction-record
+   shape the hackathon scores, plus the required product feedback.
+
+`AGENTS.md` is internal engineering notes for contributors and agents, not a
+judge-facing document.
+
 ## Project layout
 
 ```
@@ -156,9 +263,59 @@ witness/
   service.py        Application service; wires observations to the ledger
   api.py            FastAPI read model
 web/                Front end (no build step)
-tests/              368 tests
+tests/              368 tests (last recorded full-suite count)
+scripts/            live_smoke.py, render_check.js, demo_tamper.py
 docs/               Friction log, demo script, submission notes, evidence matrix
 ```
+
+## Known limitations
+
+These are known and stated deliberately. They are not all equally severe, and
+they are not all the same kind of gap: some are design decisions, one is a
+missing capability, and some are simply untested ground.
+
+**Verified, but only in a dated and narrow way.** A live authenticated Ring call
+was performed on 2026-10-21 against the Ring Developer Playground and three
+endpoints answered HTTP 200 — `GET /v1/devices`, `GET /v1/devices/{id}/configurations`
+and `GET /v1/history/devices/{id}/events`. The Playground returned **one synthetic
+device and no events**. That token was short-lived (~30 minutes) and has expired,
+so no live run is possible here without a fresh one. See
+[docs/SUBMISSION.md](docs/SUBMISSION.md) for the full record.
+
+**Real-account behaviour is unconfirmed.** Only the Playground's single synthetic
+device has been observed. Whether real devices populate a `device_type`/`kind`
+field or an online flag is unknown, and WITNESS reports those as unknown rather
+than guessing.
+
+**The interesting incident scenarios remain simulation-only.** The Playground
+cannot produce a withdrawal, an encryption transition, a duplicate delivery or a
+late arrival. Their behaviour is demonstrated on the labelled simulated source
+and covered by the deterministic engine's tests — which proves the
+*interpretation*, not that the live service emits the condition.
+
+**No configuration history, so no encryption transition.** The API exposes only
+the current configuration. WITNESS reports the current reading and explicitly
+declines to assert that it changed; a genuine before-and-after is not
+implementable from the data available.
+
+**Live error behaviour is unexercised.** `429` and `5xx` responses are classified
+and tested against a mock transport, but have not been observed from the live
+service.
+
+**The ledger is tamper-evident, not immutable.** A privileged operator can
+rewrite the whole chain and it will verify cleanly. Detecting that needs an
+externally anchored checkpoint, which is out of scope for this build.
+
+**Retention is bounded at 200 observations per source.** `witness/store.py`
+keeps at most `MAX_OBSERVATIONS_PER_SOURCE = 200` observations per source,
+pruning oldest first. A device is only visible in the *current* view while an
+observation that carried it is still inside that window; if every observation
+that reported it is pruned before it reappears, the device drops out of the
+current view entirely — not observed, not withdrawn, and with no limitation
+entry raised for it. That is silence, not a false claim: WITNESS does not assert
+removal from evidence it no longer holds. The ledger is **not** pruned, so the
+full audit trail survives. `docs/EVIDENCE_MATRIX.md` characterises this boundary
+and notes it is documented rather than pinned by a test.
 
 ## Honesty boundaries
 

@@ -303,7 +303,8 @@ so a judge who stops early still sees the real integration.
 
 Before you press record:
 
-- [ ] `python -m pytest -q` passes (368 tests).
+- [ ] `python -m pytest tests/ -q` passes (368 tests, the last recorded full-suite
+      count — the command prints the current number).
 - [ ] `node --check web/app.js` passes.
 - [ ] `python scripts/demo_tamper.py` reports five classes detected, one
       limitation stated.
