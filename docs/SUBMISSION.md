@@ -9,7 +9,7 @@ network — the Ring adapter is exercised against `httpx.MockTransport`.
 
 ```bash
 pip install -r requirements.txt
-python -m pytest tests/ -q          # canonical full-suite command; expect 368 passed
+python -m pytest tests/ -q          # canonical full-suite command; expect 369 passed
 python -m uvicorn witness.api:app --port 8000
 ```
 
@@ -81,8 +81,8 @@ verification status. Read the two together.
 - The front end renders every view against real payloads (headless harness,
   `scripts/render_check.js`; the three Node-dependent tests skip cleanly if
   Node.js is absent).
-- 368 automated tests pass — the last recorded full-suite result. `python -m
-  pytest tests/ -q` prints the current number in your environment.
+- 369 automated tests pass — a full-suite result from a clean environment. `python -m
+  pytest tests/ -q` prints the current number in yours.
 
 ### VERIFIED LIVE — exercised against the real Ring Developer Playground
 
@@ -339,7 +339,7 @@ witness/engine/      Deterministic core: statuses, rules, reconciliation, ledger
 witness/adapters/    Ring (live, read-only) and simulated sources
 witness/api.py       HTTP read model
 web/                 Front end, no build step
-tests/               368 tests (last recorded full-suite count)
+tests/               369 tests (full-suite count; 3 skip without Node.js)
 scripts/             live_smoke.py, render_check.js, demo_tamper.py
 docs/                FRICTION_LOG.md, DEMO_SCRIPT.md, SUBMISSION.md, EVIDENCE_MATRIX.md
 ```

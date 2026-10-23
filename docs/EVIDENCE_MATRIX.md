@@ -91,8 +91,12 @@ derived *current* view is bounded by retention.
 the device was absent, the store retained 200 observations, the device id was
 absent from the retained window, and the current reconciliation listed only the
 remaining device with no withdrawal and no limitation entry; the ledger retained
-its records for the pruned device and verified. This boundary is documented, not
-pinned by a test.
+its records for the pruned device and verified. The retention bound itself is
+pinned by
+`tests/test_service.py::test_observation_retention_keeps_the_newest_per_source`,
+which asserts the 200-per-source limit, that the newest 200 survive and the
+oldest are pruned first, that one source's overflow does not prune another
+source, and that the ledger is not subject to the observation bound.
 
 ---
 

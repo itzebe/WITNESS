@@ -310,3 +310,59 @@ def test_store_ledger_restores_after_a_reopen(tmp_path):
     assert restored.head_hash == head
     reopened.close()
 
+
+def test_observation_retention_keeps_the_newest_per_source(tmp_path):
+    """Retention is bounded per source: the newest 200 survive, oldest pruned.
+
+    The README and EVIDENCE_MATRIX describe this boundary; this pins it. It also
+    checks the two properties that are easy to get wrong when pruning is
+    implemented as a single global query: one source's overflow must not delete
+    another source's observations, and the ledger -- the attestation, not the
+    data -- must not be treated as subject to the observation bound.
+    """
+    from datetime import timedelta
+
+    from tests.conftest import T0, make_observation
+
+    store = Store(path=str(tmp_path / "retention.db"))
+
+    # 225 observations for "ring", strictly increasing in time, and 3 for a
+    # second source that must be left alone.
+    total = MAX_OBSERVATIONS_PER_SOURCE + 25
+    for i in range(total):
+        store.save_observation(
+            make_observation(f"o{i:03d}", source_id="ring", observed_at=T0 + timedelta(minutes=i))
+        )
+    for i in range(3):
+        store.save_observation(
+            make_observation(f"sim{i}", source_id="ring-simulated", observed_at=T0 + timedelta(minutes=i))
+        )
+
+    retained = store.observations_for("ring", limit=total + 10)
+    assert len(retained) == MAX_OBSERVATIONS_PER_SOURCE == 200
+
+    # The newest 200 remain: the 25 oldest are gone, and the surviving window
+    # starts exactly where the bound says it should.
+    ids = [o.observation_id for o in retained]
+    assert ids[0] == "o025"
+    assert ids[-1] == f"o{total - 1:03d}"
+    assert "o000" not in ids and "o024" not in ids
+
+    # Retention is scoped to the source: the other source is untouched.
+    assert len(store.observations_for("ring-simulated", limit=10)) == 3
+
+    # The ledger is not the observation history and is not pruned with it.
+    from witness.engine.ledger import Ledger
+
+    ledger = Ledger()
+    for i in range(5):
+        ledger.append(kind="observation", subject_id="ring", payload={"i": i})
+    store.save_ledger_records(ledger.records)
+    assert len(store.load_ledger().records) == 5
+    # Another overflow on "ring" must not touch the ledger either.
+    store.save_observation(
+        make_observation("extra", source_id="ring", observed_at=T0 + timedelta(minutes=total + 1))
+    )
+    assert len(store.load_ledger().records) == 5
+    store.close()
+
