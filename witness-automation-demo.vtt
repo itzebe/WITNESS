@@ -1,0 +1,52 @@
+WEBVTT
+
+1
+00:00:00.000 --> 00:00:09.666
+WITNESS — post-code automation. One rule: an empty result
+and a failed request are not the same thing.
+
+2
+00:00:09.816 --> 00:00:24.278
+An agent that writes code can also misreport what
+happened. The dangerous failure is a confident, wrong
+success message.
+
+3
+00:00:24.428 --> 00:00:53.913
+Four frames. One absence is not a withdrawal. A failed
+request is not an offline device. Only the fourth frame
+asserts a withdrawal.
+
+4
+00:00:54.063 --> 00:01:08.779
+A green tick says the jobs exited zero. It does not say
+the claim was exercised. The submission is the automation.
+
+5
+00:01:08.929 --> 00:01:36.394
+Three Duo Agent Platform flows, three levels of autonomy:
+assisted, supervised, hands-off.
+
+6
+00:01:36.544 --> 00:02:00.990
+Nine stages. The last stage classifies every claim:
+VERIFIED / DOCUMENTED / UNVERIFIED / UNAVAILABLE. It does
+not print a green tick.
+
+7
+00:02:01.140 --> 00:02:17.076
+396 tests pass with no credential. The ledger verifier
+rejects five tamper classes. All of it is in the public
+project.
+
+8
+00:02:17.226 --> 00:02:41.532
+The honest limit: the hands-off merge is refused by the
+flow's own credential, and the flow reports that rather
+than routing around it.
+
+9
+00:02:41.682 --> 00:02:56.829
+Path B. The product is pre-existing and MIT licensed. The
+automation is new work. Every claim is checkable in the
+public repo.

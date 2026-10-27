@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>WITNESS — automation demo video</title>
+<meta name="description" content="The WITNESS post-code automation demo for the GitLab Transcend Hackathon (Life After Code). Path B: Bring Your Own.">
+<style>
+  :root { --bg:#0b0f0e; --raised:#111614; --ink:#e8ede9; --muted:#97a49c; --faint:#67736c; --line:#1f2823; --accent:#6ee7b7; }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--bg); color:var(--ink);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Inter,Roboto,Arial,sans-serif; line-height:1.55; }
+  header { display:flex; align-items:center; gap:.8rem; padding:1.1rem 1.6rem; border-bottom:1px solid var(--line); background:#080b0a; }
+  .mark { width:30px; height:30px; color:var(--accent); }
+  .name { font-family:ui-monospace,Menlo,Consolas,monospace; font-weight:700; letter-spacing:.14em; }
+  main { max-width:1080px; margin:0 auto; padding:2.2rem 1.4rem 4rem; }
+  h1 { font-size:1.7rem; letter-spacing:-.01em; margin:0 0 .4rem; }
+  .sub { color:var(--muted); margin:0 0 1.6rem; }
+  video { width:100%; border:1px solid var(--line); border-radius:10px; background:#000; display:block; }
+  .bar { display:flex; flex-wrap:wrap; gap:.8rem; align-items:center; margin-top:1.2rem; }
+  a.btn { display:inline-flex; align-items:center; gap:.5rem; text-decoration:none;
+    background:var(--accent); color:#04120c; font-weight:600; padding:.7rem 1.1rem; border-radius:8px; }
+  a.btn.ghost { background:transparent; color:var(--accent); border:1px solid #17362b; }
+  dl { display:grid; grid-template-columns:auto 1fr; gap:.35rem 1.2rem; margin:2rem 0 0;
+    font-family:ui-monospace,Menlo,Consolas,monospace; font-size:.9rem; }
+  dt { color:var(--faint); } dd { margin:0; color:var(--ink); }
+  .note { margin-top:2rem; padding:1rem 1.2rem; border:1px solid var(--line); border-radius:10px; background:var(--raised); color:var(--muted); font-size:.92rem; }
+  .note strong { color:var(--ink); }
+  code { font-family:ui-monospace,Menlo,Consolas,monospace; color:var(--ink); }
+  a { color:var(--accent); }
+</style>
+</head>
+<body>
+<header>
+  <svg class="mark" viewBox="0 0 32 32" aria-hidden="true"><circle cx="16" cy="16" r="8.5" fill="none" stroke="currentColor" stroke-width="2.4"/><circle cx="16" cy="16" r="3" fill="currentColor"/></svg>
+  <div><div class="name">WITNESS</div><div style="color:var(--muted);font-size:.85rem">Post-code automation · GitLab Transcend Hackathon</div></div>
+</header>
+<main>
+  <h1>Automation demo</h1>
+  <p class="sub">Three Duo Agent Platform flows, a nine-stage DevSecOps pipeline, and an honest account of what does and does not close.</p>
+  <video controls preload="metadata" playsinline poster="poster.png">
+    <source src="witness-automation-demo-youtube.mp4" type="video/mp4">
+    <track kind="captions" src="witness-automation-demo.vtt" srclang="en" label="English" default>
+    Your browser does not support the video tag. <a href="witness-automation-demo-youtube.mp4">Download the MP4</a>.
+  </video>
+  <div class="bar">
+    <a class="btn" href="witness-automation-demo-youtube.mp4" download>Download MP4 (2:57)</a>
+    <a class="btn ghost" href="witness-automation-demo.srt" download>Captions (.srt)</a>
+    <a class="btn ghost" href="scene-index.png">All nine scenes (one image)</a>
+  </div>
+  <dl>
+    <dt>duration</dt><dd>2:57 (under the three-minute limit)</dd>
+    <dt>format</dt><dd>1920×1080, H.264 High / AAC-LC, brand mp42, faststart</dd>
+    <dt>captions</dt><dd>sidecar .srt and .vtt</dd>
+    <dt>narration</dt><dd>synthetic (text-to-speech), disclosed on screen</dd>
+    <dt>source</dt><dd>docs/AUTOMATION_DEMO.md, scene for scene</dd>
+  </dl>
+  <p class="note"><strong>Path B: Bring Your Own.</strong> The product is pre-existing and MIT-licensed:
+  <a href="https://github.com/itzebe/WITNESS">github.com/itzebe/WITNESS</a>. The automation — the flows,
+  the nine-stage pipeline, and the deployment — is the new work:
+  <a href="https://gitlab.com/itzebe-group/itzebe-project">gitlab.com/itzebe-group/itzebe-project</a>.</p>
+  <p class="note"><strong>Honesty notes.</strong> The hands-off flow's own merge is <code>REFUSED</code> by
+  the server, and the flow reports the refusal rather than routing around it. The evidence ledger is
+  tamper-evident, never immutable. The video is a designed deck over real screenshots, not screen-recorded
+  execution, and every figure shown was captured from the build.</p>
+</main>
+</body>
+</html>
